@@ -43,7 +43,8 @@ internal object UpdateClient {
             connection.useCaches = false
             val statusCode = connection.responseCode
             if (statusCode !in 200..299) throw IOException("Download from $url failed: $statusCode")
-            val total = connection.contentLengthLong.takeIf { it > 0 }
+            // getContentLengthLong is API 24; the HTTP header remains available on API 23.
+            val total = connection.getHeaderField("Content-Length")?.toLongOrNull()?.takeIf { it > 0 }
             var written = 0L
             connection.inputStream.use { input ->
                 destination.outputStream().use { output ->
