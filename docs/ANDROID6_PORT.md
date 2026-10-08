@@ -14,6 +14,9 @@ experimental compatibility target, not a claim of vehicle validation.
 - Audio playback never calls `AudioTrack.getUnderrunCount` on Android 6. It uses
   PCM written/played accounting to detect an empty track; unknown hardware
   underruns are reported as unavailable, rather than a measured zero.
+- USB Lockdown TLS uses the platform default key-manager algorithm and avoids the
+  API-24 endpoint-identification setter on Android 6. Microphone timing uses the
+  existing latency fallback without calling the API-24 timestamp method.
 - Audio focus, configured audio attributes, API-23 AudioTrack/MediaCodec, and
   media/navigation stream overrides retain upstream compatibility behavior.
 - Java-8 collection/future calls on connection and decoder lifecycle paths are
@@ -65,7 +68,8 @@ does not share settings with this app; run one projection receiver at a time.
 
 Automated coverage includes API 23/25 settings startup, all settings categories,
 language/scaling, API-23 PCM AudioTrack startup/write, audio starvation accounting,
-audio focus and attribute compatibility, and bounded asynchronous URL responses.
+audio focus and attribute compatibility, synthetic USB TLS setup, API-23 microphone
+latency fallback, and bounded asynchronous URL responses.
 Existing upstream unit tests and the complete mobile/home/map-host lint suite run as well. Extra library lint focuses on NewApi/InlinedApi; pre-existing shared-library permission-lint findings are outside this API compatibility audit. The dedicated fork push workflow also installs the standalone APK in an API-23 x86_64 emulator, opens Settings, checks the resumed activity and startup errors, and retains a screenshot/logcat artifact. This emulator does not validate ARMv7 execution or real-car Bluetooth/audio. Passing these checks cannot
 prove physical speaker output, microphone capture, codecs, Bluetooth handoff,
 USB drivers, or iPhone authentication on a particular OEM firmware.
