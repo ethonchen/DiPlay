@@ -51,6 +51,15 @@ object AirPlayCrypto {
                 ?.let(::PlatformChacha)
     }
 
+    // Android 6 has no platform ChaCha20-Poly1305. Reuse the small Java decryptor on
+    // each receive thread instead of allocating its engine, MAC and scratch arrays for
+    // every video frame/audio packet. init(false, ...) resets key, nonce, AAD and MAC;
+    // authentication still completes before any plaintext is returned to the caller.
+    // Encryption remains separate to retain its existing key/nonce reuse behavior.
+    private val fallbackDecryptor = object : ThreadLocal<ChaCha20Poly1305>() {
+        override fun initialValue(): ChaCha20Poly1305 = ChaCha20Poly1305()
+    }
+
     /** Implementation used by this thread's last successful operation, for diagnostics. */
     val chachaImplementation: String
         get() = platformState.get()?.implementation ?: "BouncyCastle"
@@ -189,7 +198,7 @@ object AirPlayCrypto {
         ciphertextAndTag: ByteArray,
         aad: ByteArray = ByteArray(0),
     ): ByteArray {
-        val cipher = ChaCha20Poly1305()
+        val cipher = fallbackDecryptor.get()!!
         cipher.init(false, AEADParameters(KeyParameter(key), MAC_BITS, nonce, aad))
         val output = ByteArray(cipher.getOutputSize(ciphertextAndTag.size))
         val processed = cipher.processBytes(ciphertextAndTag, 0, ciphertextAndTag.size, output, 0)

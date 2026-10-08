@@ -12,13 +12,21 @@ def main() -> None:
     parser.add_argument("apk", type=Path)
     parser.add_argument("--build-tools", type=Path, required=True)
     parser.add_argument("--standalone", action="store_true")
+    parser.add_argument("--optimized", action="store_true")
+    parser.add_argument("--signer-sha256", help="Require the known update-signing certificate")
     args = parser.parse_args()
     badging = subprocess.check_output([str(args.build_tools / "aapt"), "dump", "badging", str(args.apk)], text=True)
     assert re.search(r"^sdkVersion:'23'$", badging, re.M), "APK installation minimum must be API 23"
     assert "package: name='com.shihab.diplay.hudtest'" in badging, "Wrong application package"
+    if args.optimized:
+        assert "application-debuggable" not in badging, "Optimized APK must not run debuggable"
+        assert "versionCode='35'" in badging and "versionName='0.2.14-android6-q7-slim'" in badging
+        assert args.apk.stat().st_size < 12 * 1024 * 1024, "Optimized Q7 APK exceeded the size budget"
     signing = subprocess.check_output([str(args.build_tools / "apksigner"), "verify", "--verbose",
-        "--min-sdk-version", "23", str(args.apk)], text=True)
+        "--print-certs", "--min-sdk-version", "23", str(args.apk)], text=True)
     assert "Verified using v1 scheme (JAR signing): true" in signing, "Android 6 requires v1 signing"
+    if args.signer_sha256:
+        assert "Signer #1 certificate SHA-256 digest: " + args.signer_sha256.lower() in signing, "Update signing key changed"
     with zipfile.ZipFile(args.apk) as archive:
         names = set(archive.namelist())
         for library in ("libxcertplay_i2c.so", "liblocal_hotspot_radio.so", "libspeex_echo.so"):
