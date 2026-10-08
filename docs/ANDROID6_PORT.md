@@ -45,7 +45,7 @@ Gradle wrapper. Compilation against SDK 37 does not set the installation minimum
 
 CI uploads `DiPlay-Android6-source-only` only after all checks pass. The APK is
 `mobile/build/outputs/apk/debug/mobile-debug.apk`, package
-`com.shihab.diplay.hudtest`, and version `0.2.14-android6-hud-test`.
+`com.shihab.diplay.hudtest`, and version `0.2.14-android6-q7-hud-test`.
 Do not install the Home/map-host APK on Android 6.
 
 **The CI/source APK does not contain an accessory authentication identity.** It
@@ -70,7 +70,7 @@ Automated coverage includes API 23/25 settings startup, all settings categories,
 language/scaling, API-23 PCM AudioTrack startup/write, audio starvation accounting,
 audio focus and attribute compatibility, synthetic USB TLS setup, API-23 microphone
 latency fallback, and bounded asynchronous URL responses.
-Existing upstream unit tests and the complete mobile/home/map-host lint suite run as well. Extra library lint focuses on NewApi/InlinedApi; pre-existing shared-library permission-lint findings are outside this API compatibility audit. The dedicated fork push workflow also installs the standalone APK in an API-23 x86_64 emulator, opens Settings, checks the resumed activity and startup errors, and retains a screenshot/logcat artifact. This emulator does not validate ARMv7 execution or real-car Bluetooth/audio. Passing these checks cannot
+Existing upstream unit tests and the complete mobile/home/map-host lint suite run as well. Extra library lint focuses on NewApi/InlinedApi; pre-existing shared-library permission-lint findings are outside this API compatibility audit. Pushes to the fork main and port branches both build the standalone APK. The dedicated fork push workflow also installs the standalone APK in an API-23 x86_64 emulator, opens Settings, checks the resumed activity and startup errors, and retains a screenshot/logcat artifact. This emulator does not validate ARMv7 execution or real-car Bluetooth/audio. Passing these checks cannot
 prove physical speaker output, microphone capture, codecs, Bluetooth handoff,
 USB drivers, or iPhone authentication on a particular OEM firmware.
 
@@ -93,3 +93,32 @@ On the HHQ Q7 Android-6/Cortex-A7 head unit:
    treating the build as vehicle-ready.
 
 No HHQ Q7 physical-device result is claimed by this port.
+
+## HHQ Q7 completion (2026-10-08)
+
+The Q7 build retains H.264, 30 fps, automatic media/navigation routing, and
+unbuffered CarPlay audio as the fresh-install defaults. The real-car log shows
+1024x600 video; API-23/25 Settings/category/language tests now use that screen
+size. Audio-channel persistence and focus-control tests also run on API 23.
+There is no attempt to force OEM volume or guess proprietary MCU/steering-wheel
+interfaces. The car-test APK contains ARMv7 native libraries.
+
+The old Legacy report's `Android SDK18` header is a fixed string in
+`adaptation/receiver/src/local/airuize/receiver/ReceiverActivity.kt` in the
+AIxBits reference; it is not a runtime SDK measurement. The Q7 screenshot says
+Android 6.0. This build reports `Build.VERSION.SDK_INT` and the actual firmware.
+It requires API 23 or newer; an installation failure must be diagnosed from
+the system-reported SDK and installer result rather than the old header.
+
+The old report showed no audio SETUP/RTP/PCM despite working local test tones.
+This port uses the complete current upstream receiver, not the stripped API-18
+receiver: matching discovery/info features, audio formats and latencies,
+resource declarations, SETUP handling, decoders and PCM playback are retained.
+A source review cannot prove iPhone media/navigation/Siri playback in this car.
+Export this build's diagnostics while music is playing if any of them is silent.
+
+The in-app update feed now points to `ethonchen/DiPlay`; upstream's newer Android
+minimum and signing identity must not be offered as updates to this port. If
+this fork has no release with an APK and checksums, no update is offered.
+For subsequent APK builds use the fork Actions artifact and the same cached
+signing key. Version code 34 updates the earlier code-33 test APK.

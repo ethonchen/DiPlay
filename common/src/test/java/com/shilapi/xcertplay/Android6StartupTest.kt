@@ -14,7 +14,7 @@ import org.robolectric.util.ReflectionHelpers
 import java.util.Locale
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [23, 25], qualifiers = "en-sw800dp-w1280dp-h800dp-land-mdpi")
+@Config(sdk = [23, 25], qualifiers = "en-sw600dp-w1024dp-h600dp-land-mdpi")
 class Android6StartupTest {
     @Test fun scaledArabicSettingsOpenEveryCategoryAndReturnToSystemLanguage() {
         val app = RuntimeEnvironment.getApplication()
