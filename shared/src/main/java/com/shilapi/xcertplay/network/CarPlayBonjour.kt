@@ -152,7 +152,7 @@ class CarPlayBonjour(
     private val services = LinkedBlockingQueue<NsdServiceInfo>()
     private val interfaceServices = LinkedBlockingQueue<Pair<CarPlayBonjourEndpoint, InetAddress>>()
     private val discoveryEvents = LinkedBlockingQueue<CarPlayBonjourEvent.Discovery>(32)
-    private val seenServices = ConcurrentHashMap.newKeySet<String>()
+    private val seenServices = java.util.Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     private val lifecycleLock = Any()
     private val localAdvertisedAddress = advertisedHostAddress()
     private val advertisedAddresses = (listOfNotNull(localAdvertisedAddress) + additionalAddresses).distinct()

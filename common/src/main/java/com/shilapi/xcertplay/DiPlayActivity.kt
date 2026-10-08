@@ -748,7 +748,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         addView(headerButton(getString(R.string.back), R.drawable.ic_dp_back, compact, ::navigateBack),
             LinearLayout.LayoutParams(-2, if (compact) dp(44) else dp(52)))
         addView(label(getString(R.string.settings), if (compact) 20 else 26, TEXT, true,
-            centreGlyphs = resources.configuration.locales[0].language == "zh").apply {
+            centreGlyphs = resources.configuration.primaryLocale().language == "zh").apply {
             setPadding(dp(12), 0, dp(12), 0)
         }, LinearLayout.LayoutParams(0, if (compact) dp(44) else dp(52), 1f))
         addView(appearanceButton(), LinearLayout.LayoutParams(dp(48), dp(48)).apply {
@@ -1281,7 +1281,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 val titles = mutableListOf(settingsCategoryTitle(category))
                 searchIndexSink = titles
                 settingsCategoryContent(column())
-                titles.forEach { index.putIfAbsent(it, category) }
+                titles.forEach { if (!index.containsKey(it)) index[it] = category }
             }
         } finally {
             searchIndexSink = null

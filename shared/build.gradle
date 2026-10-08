@@ -6,7 +6,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        minSdk = 25
+        minSdk = 23
         targetSdk = 37
 
         ndk {
@@ -15,7 +15,7 @@ android {
 
         externalNativeBuild {
             ndkBuild {
-                arguments 'APP_PLATFORM=android-25'
+                arguments 'APP_PLATFORM=android-23'
             }
         }
 
@@ -28,11 +28,13 @@ android {
         }
     }
     compileOptions {
+        coreLibraryDesugaringEnabled true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
 }
 dependencies {
+    coreLibraryDesugaring libs.desugar.jdk.libs
     implementation libs.androidx.app
     implementation libs.bouncycastle
     implementation libs.jmdns
