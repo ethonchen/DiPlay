@@ -1355,7 +1355,14 @@ private class AudioRenderer(
             packetsReceived.incrementAndGet()
             val now = System.nanoTime()
             val previous = lastArrivalNs.getAndSet(now)
-            if (previous != 0L) maxArrivalGapMs.accumulateAndGet((now - previous) / 1_000_000L, ::maxOf)
+            if (previous != 0L) {
+                // AtomicLong.accumulateAndGet is absent on Android 6.
+                val gap = (now - previous) / 1_000_000L
+                var observed = maxArrivalGapMs.get()
+                while (gap > observed && !maxArrivalGapMs.compareAndSet(observed, gap)) {
+                    observed = maxArrivalGapMs.get()
+                }
+            }
         }
         if (!started || !queue.offer(AudioPacket(rtp, sample))) {
             if (started) packetsDropped.incrementAndGet()

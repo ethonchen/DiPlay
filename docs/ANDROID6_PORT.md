@@ -57,7 +57,7 @@ export DIPLAY_AUTH_ASSETS_DIR=/absolute/path/to/runtime-assets
 
 The directory contains `offline-mfi/identity.pk8` and
 `offline-mfi/certificate.p7b`. Neither authentication material nor signing keys
-belong in this public repository. No credentials are copied from another APK.
+belong in this public repository. Ordinary source builds do not import APK credentials. For this fork's car-test build, the owner explicitly selected the public experimental identity from upstream `DiPlay-0.2.14.apk` (SHA-256 `62b31f79db32bc7c85013ae830460b697a5952fad571ed0030b97341dde0b2e3`). The dedicated push workflow extracts only the two named files into a temporary external directory, builds `DiPlay-Android6-standalone-experimental`, verifies API-23/v1/ARMv7 packaging, and removes the temporary inputs. Pull-request and ordinary source builds stay identity-free. This is the upstream public experiment, not Apple certification; future iOS acceptance is unresolved. The APK necessarily makes that public test identity extractable.
 Keep the same signing key for updates. Legacy 0.21 has a different package and
 does not share settings with this app; run one projection receiver at a time.
 
