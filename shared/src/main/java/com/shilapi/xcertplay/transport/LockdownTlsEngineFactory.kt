@@ -1,6 +1,7 @@
 package com.shilapi.xcertplay.transport
 
 import android.annotation.SuppressLint
+import android.os.Build
 import com.shilapi.xcertplay.compat.Base64Compat
 import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
@@ -40,7 +41,7 @@ object LockdownTlsEngineFactory {
                 load(null, password)
                 setKeyEntry(KEY_ALIAS, privateKey, password, arrayOf(certificate))
             }
-            val keyManagers = KeyManagerFactory.getInstance("PKIX").apply {
+            val keyManagers = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()).apply {
                 init(keyStore, password)
             }.keyManagers
             val context = SSLContext.getInstance("TLS").apply {
@@ -48,7 +49,11 @@ object LockdownTlsEngineFactory {
             }
             return context.createSSLEngine(PEER_HOST, PEER_PORT).apply {
                 useClientMode = true
-                sslParameters = sslParameters.apply { endpointIdentificationAlgorithm = null }
+                // A raw API-23 SSLEngine already has no endpoint-identification algorithm.
+                // Its SSLParameters setter for that option only exists from Android 7.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    sslParameters = sslParameters.apply { endpointIdentificationAlgorithm = null }
+                }
             }
         } finally {
             password.fill('\u0000')

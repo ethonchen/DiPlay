@@ -8,8 +8,10 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 internal object UpdateClient {
+    // This fork ships API-23 builds. Upstream releases have a higher installation
+    // minimum and a different signing/package identity; they cannot update this app.
     internal const val RELEASES_URL =
-        "https://api.github.com/repos/shihabal3amri/DiPlay/releases?per_page=3"
+        "https://api.github.com/repos/ethonchen/DiPlay/releases?per_page=3"
     private const val CONNECT_TIMEOUT_MILLIS = 10_000
     private const val READ_TIMEOUT_MILLIS = 30_000
     private const val MAXIMUM_TEXT_BYTES = 4 * 1024 * 1024
@@ -43,7 +45,8 @@ internal object UpdateClient {
             connection.useCaches = false
             val statusCode = connection.responseCode
             if (statusCode !in 200..299) throw IOException("Download from $url failed: $statusCode")
-            val total = connection.contentLengthLong.takeIf { it > 0 }
+            // getContentLengthLong is API 24; the HTTP header remains available on API 23.
+            val total = connection.getHeaderField("Content-Length")?.toLongOrNull()?.takeIf { it > 0 }
             var written = 0L
             connection.inputStream.use { input ->
                 destination.outputStream().use { output ->

@@ -1,0 +1,5 @@
+<resources>
+    <style name="Theme.Xcertplay.Light" parent="Theme.Xcertplay.LightBase">
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>

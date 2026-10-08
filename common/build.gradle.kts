@@ -10,10 +10,11 @@ android {
     }
 
     defaultConfig {
-        minSdk = 25
+        minSdk = 23
     }
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
@@ -27,9 +28,17 @@ android {
         // The UI suite covers several SDKs and locale-specific resource sandboxes.
         unitTests.all { it.maxHeapSize = "1g" }
     }
+
+    // Additional library audit for this port; the mobile app retains the full upstream lint suite.
+    lint {
+        checkOnly += setOf("NewApi", "InlinedApi")
+        textReport = true
+        textOutput = file("build/reports/android6-api-lint.txt")
+    }
 }
 
 dependencies {
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
     api(project(":shared"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)

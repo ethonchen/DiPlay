@@ -225,7 +225,7 @@ class AndroidMediaSink(
     private val videoReleasedListeners = ArrayList<() -> Unit>()
     // Closed decoders whose workers may still hold a codec on a surface until they exit; a surface
     // detach also waits for them.
-    private val closingVideoDecoders = ConcurrentHashMap.newKeySet<VideoDecoder>()
+    private val closingVideoDecoders = java.util.Collections.newSetFromMap(ConcurrentHashMap<VideoDecoder, Boolean>())
     // How long a surface detach waits for decoders to confirm, and then for an unconfirmed one to exit
     // after it is closed. Variables so tests can shorten them.
     internal var detachTimeoutNanos = 2_000_000_000L
@@ -295,14 +295,18 @@ class AndroidMediaSink(
         val requests = ArrayList<SurfaceDetachRequest>()
         val steps = ArrayList<() -> Boolean>()
         synchronized(videoOwnershipLock) {
-            surfaces.entries.removeIf { it.value === surface } // future workers must not start on it
+            for ((type, current) in surfaces.entries.toList()) {
+                if (current === surface) surfaces.remove(type, current) // future workers must not start on it
+            }
             if (defaultSurface === surface) defaultSurface = null
             for ((type, decoder) in videoDecoders.entries.toList()) {
                 val request = decoder.requestDetach(surface, park = parkMain && type == MAIN_SCREEN_TYPE)
                 requests += request
                 steps += { settleDetach(type, decoder, request, deadline) }
             }
-            closingVideoDecoders.removeIf { it.exited }
+            for (decoder in closingVideoDecoders.toList()) {
+                if (decoder.exited) closingVideoDecoders.remove(decoder)
+            }
             closingVideoDecoders.toList().forEach { closing -> steps += { closing.awaitExitUntil(deadline + detachGraceNanos) } }
         }
         return SurfaceDetach(requests, steps)
@@ -365,7 +369,9 @@ class AndroidMediaSink(
     private fun onVideoDecoderExit(decoder: VideoDecoder) {
         val listeners = synchronized(videoOwnershipLock) {
             closingVideoDecoders -= decoder
-            videoDecoders.entries.removeIf { it.value === decoder }
+            for ((type, current) in videoDecoders.entries.toList()) {
+                if (current === decoder) videoDecoders.remove(type, current)
+            }
             if (videoClosed && videoDecoders.isEmpty() && closingVideoDecoders.isEmpty()) {
                 videoReleasedListeners.toList().also { videoReleasedListeners.clear() }
             } else emptyList()
@@ -500,7 +506,8 @@ class AndroidMediaSink(
         // This callback runs on the downlink thread; microphone failures must not stop playback.
         try {
             if (config.audioType == "telephony") enterCommunicationMode(id)
-            val uplink = microphoneUplinks.computeIfAbsent(id) {
+            // Kotlin's ConcurrentMap.getOrPut uses the API-1 putIfAbsent, not API-24 computeIfAbsent.
+            val uplink = microphoneUplinks.getOrPut(id) {
                 MicrophoneUplink(config, onAudioDiagnostic,
                     if (config.audioType == TELEPHONY_AUDIO_TYPE) callEchoReferences[id] else null)
             }
@@ -1348,7 +1355,14 @@ private class AudioRenderer(
             packetsReceived.incrementAndGet()
             val now = System.nanoTime()
             val previous = lastArrivalNs.getAndSet(now)
-            if (previous != 0L) maxArrivalGapMs.accumulateAndGet((now - previous) / 1_000_000L, ::maxOf)
+            if (previous != 0L) {
+                // AtomicLong.accumulateAndGet is absent on Android 6.
+                val gap = (now - previous) / 1_000_000L
+                var observed = maxArrivalGapMs.get()
+                while (gap > observed && !maxArrivalGapMs.compareAndSet(observed, gap)) {
+                    observed = maxArrivalGapMs.get()
+                }
+            }
         }
         if (!started || !queue.offer(AudioPacket(rtp, sample))) {
             if (started) packetsDropped.incrementAndGet()
@@ -1872,15 +1886,18 @@ private class AudioRenderer(
 
     private fun startPlayback(track: AudioTrack) {
         diagnosticStage = "track-play"
-        underrunsAtPlaybackStart = track.underrunCount
+        underrunsAtPlaybackStart = audioTrackUnderrunCount(track) ?: 0
         track.play()
         playbackStarted = true
     }
 
     private fun maintainPlaybackBuffer() {
         val track = track ?: return
+        val head = track.playbackHeadPosition
+        val starved = audioBufferStarved(audioTrackUnderrunCount(track), underrunsAtPlaybackStart,
+            bufferProgress.queuedBytes(head))
         if (bufferProgress.shouldRebuffer(mappedChannel == AudioChannel.MEDIA, playbackStarted,
-                track.underrunCount > underrunsAtPlaybackStart, queue.isEmpty(), track.playbackHeadPosition,
+                starved, queue.isEmpty(), head,
                 startThresholdBytes / 2L)) {
             // The hardware buffer has starved below the recovery floor. Pause without flushing
             // or discarding PCM, then use the configured start threshold again when music resumes.
@@ -1905,7 +1922,8 @@ private class AudioRenderer(
         val now = System.nanoTime()
         if (statsWindowStartNs == 0L) statsWindowStartNs = now
         if (!force && now - statsWindowStartNs < STATS_WINDOW_NS) return
-        val underruns = track?.underrunCount ?: 0
+        val measuredUnderruns = track?.let(::audioTrackUnderrunCount)
+        val underruns = measuredUnderruns ?: 0
         val lastRx = lastArrivalNs.get()
         val currentTrack = track
         val playbackHeadFrames = currentTrack?.playbackHeadPosition
@@ -1922,7 +1940,7 @@ private class AudioRenderer(
             "sampleRate=${currentTrack?.sampleRate ?: format.sampleRate} " +
             "trackBufferFrames=${currentTrack?.bufferSizeInFrames ?: -1} " +
             "rx=${packetsReceived.getAndSet(0)} " +
-            "dropped=${packetsDropped.getAndSet(0)} underruns=+${underruns - statsLastUnderruns} queue=${queue.size} " +
+            "dropped=${packetsDropped.getAndSet(0)} underruns=${measuredUnderruns?.let { "+${it - statsLastUnderruns}" } ?: "unavailable"} queue=${queue.size} " +
             "playing=$playbackStarted maxGapMs=${maxArrivalGapMs.getAndSet(0)} " +
             "sinceRxMs=${if (lastRx == 0L) -1 else (now - lastRx) / 1_000_000L} maxWriteMs=$maxWriteMs " +
             "writtenFrames=$writtenFramesThisWindow totalWrittenFrames=$totalWrittenFrames " +

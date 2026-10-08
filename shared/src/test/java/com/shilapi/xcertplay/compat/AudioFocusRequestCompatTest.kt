@@ -28,7 +28,7 @@ class AudioFocusRequestCompatTest {
         Handler(Looper.getMainLooper()),
     )
 
-    @Config(sdk = [25])
+    @Config(sdk = [23, 25])
     @Test fun android7UsesStreamFocusAndDeliversCallbacksToTheListener() {
         shadowOf(manager).setNextFocusRequestResponse(AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
 
