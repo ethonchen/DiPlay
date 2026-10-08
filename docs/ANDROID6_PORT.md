@@ -121,4 +121,9 @@ The in-app update feed now points to `ethonchen/DiPlay`; upstream's newer Androi
 minimum and signing identity must not be offered as updates to this port. If
 this fork has no release with an APK and checksums, no update is offered.
 For subsequent APK builds use the fork Actions artifact and the same cached
-signing key. Version code 34 updates the earlier code-33 test APK.
+signing key. Fork push builds generate/restore an explicit cached debug keystore
+and pass its path to Gradle; AGP's default location is not assumed. The final
+main-branch APK establishes the update-signing baseline. Earlier unpublished
+code-33/34 test artifacts used temporary signing keys: uninstall that test app
+once if Android reports a signature conflict. The separate Legacy app does not
+conflict with this package.

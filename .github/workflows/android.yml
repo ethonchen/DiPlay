@@ -33,6 +33,14 @@ jobs:
         with:
           path: ~/.android/debug.keystore
           key: diplay-android6-debug-signing-v1
+      - name: Prepare the explicit cached fork test signing key
+        if: github.repository == 'ethonchen/DiPlay' && github.event_name == 'push'
+        run: |
+          mkdir -p "$HOME/.android"
+          if ! test -f "$HOME/.android/debug.keystore"; then
+            keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -dname "CN=DiPlay Android 6 Test" -keyalg RSA -keysize 2048 -validity 10000
+          fi
+          echo "DIPLAY_DEBUG_KEYSTORE_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
       - name: Unit tests, lint and source-only debug build
         run: ./gradlew :shared:testDebugUnitTest :common:testDebugUnitTest :home:testDebugUnitTest :shared:lintDebug :common:lintDebug :mobile:lintDebug :home:lintDebug :maphost:lintDebug :mobile:assembleDebug :home:assembleDebug :maphost:assembleDebug --continue --stacktrace
       - name: Test reports
