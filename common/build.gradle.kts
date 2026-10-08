@@ -28,6 +28,13 @@ android {
         // The UI suite covers several SDKs and locale-specific resource sandboxes.
         unitTests.all { it.maxHeapSize = "1g" }
     }
+
+    // Additional library audit for this port; the mobile app retains the full upstream lint suite.
+    lint {
+        checkOnly += setOf("NewApi", "InlinedApi")
+        textReport = true
+        textOutput = file("build/reports/android6-api-lint.txt")
+    }
 }
 
 dependencies {

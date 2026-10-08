@@ -66,7 +66,7 @@ does not share settings with this app; run one projection receiver at a time.
 Automated coverage includes API 23/25 settings startup, all settings categories,
 language/scaling, API-23 PCM AudioTrack startup/write, audio starvation accounting,
 audio focus and attribute compatibility, and bounded asynchronous URL responses.
-Existing upstream unit tests and lint run as well. Passing these checks cannot
+Existing upstream unit tests and the complete mobile/home/map-host lint suite run as well. Extra library lint focuses on NewApi/InlinedApi; pre-existing shared-library permission-lint findings are outside this API compatibility audit. The dedicated fork push workflow also installs the standalone APK in an API-23 x86_64 emulator, opens Settings, checks the resumed activity and startup errors, and retains a screenshot/logcat artifact. This emulator does not validate ARMv7 execution or real-car Bluetooth/audio. Passing these checks cannot
 prove physical speaker output, microphone capture, codecs, Bluetooth handoff,
 USB drivers, or iPhone authentication on a particular OEM firmware.
 

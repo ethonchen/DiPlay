@@ -32,6 +32,12 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    // Extra port audit; do not replace the full mobile lint suite with this API-only check.
+    lint {
+        checkOnly 'NewApi', 'InlinedApi'
+        textReport true
+        textOutput file('build/reports/android6-api-lint.txt')
+    }
 }
 dependencies {
     coreLibraryDesugaring libs.desugar.jdk.libs
