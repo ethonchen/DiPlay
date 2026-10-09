@@ -1,7 +1,8 @@
 # Android 6.0 / API 23 port
 
-This branch ports upstream commit `75628b298378060698cb60b328fcef100d1e497d`
-to Android 6.0, retaining the current UI and protocol implementation. It is an
+This branch tracks upstream through `9e244d958afe6b8fd79ade49769ce25a944f397b`
+(0.2.15 plus the subsequent issue-template update), targeting
+Android 6.0, retaining the current UI and protocol implementation. It is an
 experimental compatibility target, not a claim of vehicle validation.
 
 ## Scope
@@ -45,7 +46,7 @@ Gradle wrapper. Compilation against SDK 37 does not set the installation minimum
 
 CI uploads `DiPlay-Android6-source-only` only after all checks pass. The APK is
 `mobile/build/outputs/apk/debug/mobile-debug.apk`, package
-`com.shihab.diplay.hudtest`, and version `0.2.14-android6-q7-hud-test`.
+`com.shihab.diplay.hudtest`, and version `0.2.15-android6-q7-hud-test`.
 Do not install the Home/map-host APK on Android 6.
 
 **The CI/source APK does not contain an accessory authentication identity.** It
@@ -129,7 +130,7 @@ DIPLAY_DEBUG_KEYSTORE_PATH=/absolute/path/to/the-existing/debug.keystore \
 ```
 
 Output: `mobile/build/outputs/apk/q7/mobile-q7.apk`, package
-`com.shihab.diplay.hudtest`, code 35, version `0.2.14-android6-q7-slim`.
+`com.shihab.diplay.hudtest`, code 36, version `0.2.15-android6-q7-slim`.
 The required signer SHA-256 is
 `5113b2d373d54973ac2fe837ab1d0f4132dba3e4fba64d4027bd4d41823d163f`.
 The dedicated workflow refuses a missing signing cache or changed certificate,
@@ -177,3 +178,23 @@ main-branch APK establishes the update-signing baseline. Earlier unpublished
 code-33/34 test artifacts used temporary signing keys: uninstall that test app
 once if Android reports a signature conflict. The separate Legacy app does not
 conflict with this package.
+
+## Upstream synchronization: 0.2.15 (2026-10-09)
+
+The previous Q7 build already descended from upstream
+`75628b298378060698cb60b328fcef100d1e497d`, which includes all functional
+changes shipped in 0.2.15: audio rebuffer recovery, the decoder operating-rate
+hint, appearance/layout updates, setup guide, update checks and optional vehicle
+features. The remaining three upstream commits only change release metadata,
+documentation, the website and issue templates. This merge adds those commits
+with their ancestry intact; it does not add a new audio-stutter fix.
+
+Fork version code advances from 35 to 36 (upstream's code 34 cannot update the
+installed Q7 app). The optimized version is `0.2.15-android6-q7-slim`. API 23,
+ARMv7 packaging, the `com.shihab.diplay.hudtest` package, cached update signer,
+fork update feed, explicit 0.2.14 test-identity source and receive-decryptor
+reuse remain unchanged. Upstream's API-25 minimum and signing key do not replace
+the fork's. The merge branch runs the required tests/lint/debug builds plus the
+optimized Q7 APK checks and API-23 installation/runtime smoke. CI evidence is
+linked in the synchronization pull request; physical Q7 smoothness remains a
+separate device check.
