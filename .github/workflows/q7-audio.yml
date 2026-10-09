@@ -1,0 +1,93 @@
+name: Q7 Android 6 audio investigation
+on:
+  push:
+    branches: [test/q7-audio-20261009]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-37.0 build-tools;36.0.0 ndk;28.2.13676358
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: diplay-android6-debug-signing-v1
+          fail-on-cache-miss: true
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 37797946939
+          name: DiPlay-Q7-slim-standalone
+          path: tested-apk
+      - name: Required source checks
+        run: ./gradlew :shared:testDebugUnitTest :common:testDebugUnitTest :home:testDebugUnitTest :mobile:lintDebug :home:lintDebug :maphost:lintDebug :mobile:assembleDebug :home:assembleDebug :maphost:assembleDebug --continue --stacktrace
+      - name: Build a separate optimized audio driver without changing the published APK
+        run: |
+          mkdir -p "$RUNNER_TEMP/probe-assets/offline-mfi"
+          unzip -p tested-apk/mobile-q7.apk assets/offline-mfi/identity.pk8 > "$RUNNER_TEMP/probe-assets/offline-mfi/identity.pk8"
+          unzip -p tested-apk/mobile-q7.apk assets/offline-mfi/certificate.p7b > "$RUNNER_TEMP/probe-assets/offline-mfi/certificate.p7b"
+          cp scripts/probes/Q7AudioProbe.kt mobile/src/q7/java/com/shilapi/xcertplay/Q7AudioProbe.kt
+          cat >> mobile/src/q7/keepRules/q7.keep <<'KEEP'
+          -keep class com.shilapi.xcertplay.Q7AudioProbe { public static void main(java.lang.String[]); }
+          KEEP
+          DIPLAY_AUTH_ASSETS_DIR="$RUNNER_TEMP/probe-assets" DIPLAY_DEBUG_KEYSTORE_PATH="$HOME/.android/debug.keystore" ./gradlew :mobile:assembleStandaloneQ7 --stacktrace
+          mkdir probe-build
+          cp mobile/build/outputs/apk/q7/mobile-q7.apk probe-build/audio-probe.apk
+          cp tested-apk/mobile-q7.apk probe-build/tested-release.apk
+          sha256sum probe-build/*.apk > probe-build/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: q7-audio-probe-build
+          path: probe-build/
+          if-no-files-found: error
+  api23-audio:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: actions/download-artifact@v4
+        with:
+          name: q7-audio-probe-build
+          path: probe-build
+      - name: AAC-LC 48 kHz stereo fixture
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          ffmpeg -hide_banner -loglevel error -f lavfi -i 'sine=frequency=440:sample_rate=48000:duration=4' -ac 2 -c:a aac -profile:a aac_low -b:a 128k -f adts fixture.aac
+          sudo chmod 666 /dev/kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 23
+          arch: x86_64
+          target: google_apis
+          cores: 2
+          ram-size: 1024M
+          heap-size: 128M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim -skin 1024x600 -noaudio
+          script: bash scripts/probes/run_q7_audio.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: q7-api23-audio-evidence
+          path: q7-audio-evidence/
+          if-no-files-found: error
