@@ -113,6 +113,42 @@ class AirPlayCryptoChachaTest {
         }
     }
 
+    @Test fun fallbackResetsAcrossPacketSizesKeysAadAndRejectedTags() {
+        for ((counter, size) in listOf(0, 1, 63, 64, 65, 1400, 65_537, 0).withIndex()) {
+            val key = bytes(32)
+            val nonce = AirPlayCrypto.nonce64(counter.toLong())
+            val aad = if (counter % 2 == 0) bytes(128) else ByteArray(0)
+            val plain = bytes(size)
+            val sealed = AirPlayCrypto.platformChacha(Cipher.ENCRYPT_MODE, key, nonce, plain, aad, false)!!
+            val damaged = sealed.copyOf().also { it[it.lastIndex] = (it.last().toInt() xor 1).toByte() }
+            try {
+                AirPlayCrypto.chachaOpenBouncyCastle(key, nonce, damaged, aad)
+                fail("fallback accepted a changed tag")
+            } catch (_: InvalidCipherTextException) { }
+            assertArrayEquals(plain, AirPlayCrypto.chachaOpenBouncyCastle(key, nonce, sealed, aad))
+            assertArrayEquals(plain, AirPlayCrypto.chachaOpenBouncyCastle(key, nonce, sealed, aad))
+        }
+    }
+
+    @Test fun fallbackDecryptorsAreIndependentAcrossReceiveThreads() {
+        val pool = Executors.newFixedThreadPool(4)
+        try {
+            val workers = (0..3).map { worker ->
+                pool.submit {
+                    val key = ByteArray(32) { worker.toByte() }
+                    repeat(40) { counter ->
+                        val plain = ByteArray(if (counter % 2 == 0) 1400 else 16_385) { (worker + it).toByte() }
+                        val nonce = AirPlayCrypto.nonce64(counter.toLong())
+                        val aad = ByteArray(128) { (worker + counter).toByte() }
+                        val sealed = AirPlayCrypto.platformChacha(Cipher.ENCRYPT_MODE, key, nonce, plain, aad, false)!!
+                        assertArrayEquals(plain, AirPlayCrypto.chachaOpenBouncyCastle(key, nonce, sealed, aad))
+                    }
+                }
+            }
+            workers.forEach { it.get(10, TimeUnit.SECONDS) }
+        } finally { pool.shutdownNow() }
+    }
+
     @Test fun concurrentCallsKeepKeysAadAndBuffersOnTheirOwnThread() {
         val pool = Executors.newFixedThreadPool(4)
         try {

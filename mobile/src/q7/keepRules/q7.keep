@@ -1,0 +1,10 @@
+# JNI symbols in the three existing native libraries use these exact Java names.
+# Keep only classes and members that cross JNI, allowing the rest of the app to shrink.
+-keepclasseswithmembernames,includedescriptorclasses class * {
+    native <methods>;
+}
+-keepattributes SourceFile,LineNumberTable
+# Only the entry point is fixed; its callees remain fully optimized.
+-keep class com.shilapi.xcertplay.Q7RuntimeProbe {
+    public static void main(java.lang.String[]);
+}

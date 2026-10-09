@@ -17,7 +17,7 @@ android {
         applicationId = "com.shihab.diplay"
         minSdk = 23
         targetSdk = 37
-        versionCode = 34
+        versionCode = 35
         versionName = "0.2.14-android6-q7"
 
     }
@@ -56,6 +56,18 @@ android {
                 enable = false
             }
             signingConfig = signingConfigs.getByName("release")
+        }
+        create("q7") {
+            initWith(getByName("release"))
+            // Update the tested code-34 APK in place, preserving its settings and permissions.
+            applicationIdSuffix = ".hudtest"
+            versionNameSuffix = "-slim"
+            isDebuggable = false
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+            optimization {
+                enable = true
+            }
         }
     }
     compileOptions {
@@ -128,4 +140,9 @@ tasks.register("assembleStandaloneDebug") {
     group = "build"
     description = "Build a standalone car-test APK with explicitly provisioned authentication."
     dependsOn(verifyStandaloneAuthentication, "assembleDebug")
+}
+tasks.register("assembleStandaloneQ7") {
+    group = "build"
+    description = "Build the optimized, update-compatible Q7 car-test APK."
+    dependsOn(verifyStandaloneAuthentication, "assembleQ7")
 }

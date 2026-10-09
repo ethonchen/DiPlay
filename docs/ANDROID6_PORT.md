@@ -94,6 +94,56 @@ On the HHQ Q7 Android-6/Cortex-A7 head unit:
 
 No HHQ Q7 physical-device result is claimed by this port.
 
+## Q7 optimized build (2026-10-08)
+
+The owner confirmed speaker output in the code-34 APK from main commit
+`53be782f5f7f423fa8791372a2bf16c7f0aad1c0`. The supplied FYT6025/sc8830 log
+also records active AAC-LC/48-kHz playback with advancing PCM accounting and
+no AudioTrack write errors. This observation does not establish call/Siri
+or navigation-mixing behavior.
+
+The same log shows H.264 hardware decoding at 1024x600/30 fps, but the Java
+ChaCha20-Poly1305 fallback takes about 32–59 ms per frame in many active
+windows, with larger spikes of 200–280 ms. Received/rendered rates commonly
+fall to 20–28 fps. Wi-Fi P2P uses 2.4 GHz with reported 5-GHz support false;
+later audio windows show sequence gaps and up to roughly 1.2 s receive gaps.
+Low frame rates while the TextureView is destroyed are background activity,
+and should not be interpreted as foreground decoder failure.
+
+The `q7` build uses release dependencies and AGP 9.3's code/resource optimizer,
+without Compose debug tooling or the debuggable flag. It retains all existing
+languages, ARMv7/ARM64/x86_64 native targets, settings, diagnostic exports and
+CarPlay audio/connection features. The small extra native targets allow the
+**exact delivered APK** to run in the API-23 emulator. No audio routing, codec,
+buffer, video-resolution or Wi-Fi defaults are changed. The Java fallback
+decryptor is reused separately on each receive thread, and resets its key,
+nonce, AAD and authentication state on every packet. Encryption and native
+platform selection retain the previous behavior.
+
+Build with the same runtime inputs and cached fork signing key:
+
+```sh
+DIPLAY_AUTH_ASSETS_DIR=/absolute/path/to/runtime-assets \
+DIPLAY_DEBUG_KEYSTORE_PATH=/absolute/path/to/the-existing/debug.keystore \
+./gradlew :mobile:lintQ7 :mobile:assembleStandaloneQ7
+```
+
+Output: `mobile/build/outputs/apk/q7/mobile-q7.apk`, package
+`com.shihab.diplay.hudtest`, code 35, version `0.2.14-android6-q7-slim`.
+The required signer SHA-256 is
+`5113b2d373d54973ac2fe837ab1d0f4132dba3e4fba64d4027bd4d41823d163f`.
+The dedicated workflow refuses a missing signing cache or changed certificate,
+checks API-23/v1/ARMv7/identity packaging and a 12-MiB size budget, and archives
+R8 mappings. It runs the full required debug test/lint/build command and Q7
+lint, then installs the optimized APK and opens Settings in Android 6.
+An explicit ADB probe runs the **optimized code** to check local MFi signing,
+X25519, Ed25519, varied-size authenticated packets, tampered-tag rejection and
+recovery after rejection. It never runs during ordinary app startup.
+
+Use an in-place APK update to keep the known-working audio settings. A smoothness
+improvement must be measured on the physical Q7; emulator crypto/UI checks cannot
+establish Cortex-A7 performance or remove 2.4-GHz RF interference.
+
 ## HHQ Q7 completion (2026-10-08)
 
 The Q7 build retains H.264, 30 fps, automatic media/navigation routing, and
