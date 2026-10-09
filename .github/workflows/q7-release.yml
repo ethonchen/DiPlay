@@ -1,0 +1,60 @@
+name: Publish tested Q7 APK
+on:
+  push:
+    branches: [release/q7-slim-20261009]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  publish:
+    if: github.repository == 'ethonchen/DiPlay'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 37797946939
+          name: DiPlay-Q7-slim-standalone
+          path: dist
+      - name: Verify the exact APK already installed by the owner
+        run: |
+          cd dist
+          echo 'b9a746bcfb218043f629508430421db5664e827fc77e5b6397e968418424a82d  mobile-q7.apk' | sha256sum --check
+          test "$(stat -c %s mobile-q7.apk)" = 5825334
+          mv mobile-q7.apk DiPlay-HHQ-Q7-Android6-0.2.14-slim.apk
+          sha256sum DiPlay-HHQ-Q7-Android6-0.2.14-slim.apk > SHA256SUMS.txt
+      - name: Create and publish the release with the verified assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ethonchen/DiPlay
+        run: |
+          cat > notes.md <<'NOTES'
+          HHQ Q7 / Android 6 瘦身版本，来自已合并的 PR #2。
+
+          APK 与车主在 2026-10-09 早上安装验证的文件完全相同，没有重新编译或修改声音设置。
+
+          - 体积 5,825,334 字节（5.56 MiB），原版本 22.44 MiB，减少约 75.2%。
+          - Android 6 / API 23 起；versionCode 35；包名 com.shihab.diplay.hudtest。
+          - 保持原签名，可覆盖安装；保留 ARMv7、ARM64、x86_64。
+          - 开启代码和资源优化，移除调试工具，复用 Android 6 音视频解密器，减少重复分配。
+          - 1,977 项单元测试及 lint/build 通过；同一 APK 在 Android 6 模拟器启动和认证/加密探针通过。
+
+          已知问题：车主确认可以正常使用，但音乐仍偶有断续，音频链路与受限负载测试正在进行；本版本没有宣称彻底修复断音。
+
+          SHA-256: b9a746bcfb218043f629508430421db5664e827fc77e5b6397e968418424a82d
+          NOTES
+          tag=v0.2.14-android6-q7-slim
+          if gh release view "$tag" --json isDraft >/dev/null 2>&1; then
+            test "$(gh release view "$tag" --json isDraft --jq .isDraft)" = true
+          else
+            gh release create "$tag" --draft --target 737eb235830a907480b418f8b5023d4d7d043665 --title 'DiPlay 0.2.14 · HHQ Q7 Android 6 瘦身版' --notes-file notes.md
+          fi
+          gh release upload "$tag" dist/DiPlay-HHQ-Q7-Android6-0.2.14-slim.apk dist/SHA256SUMS.txt --clobber
+          gh release download "$tag" --pattern '*.apk' --dir verify
+          echo 'b9a746bcfb218043f629508430421db5664e827fc77e5b6397e968418424a82d  verify/DiPlay-HHQ-Q7-Android6-0.2.14-slim.apk' | sha256sum --check
+          gh release edit "$tag" --draft=false --latest
+          gh release view "$tag" --json url,isDraft,assets
