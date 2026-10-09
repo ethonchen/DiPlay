@@ -1,0 +1,188 @@
+[
+  {
+    "config": "4core",
+    "environment": [
+      "ENV sdk=23 abi=x86_64, x86 cores=4",
+      "ENV MemTotal:        2050332 kB MemFree:          433280 kB Buffers:           19984 kB"
+    ],
+    "results": [
+      {
+        "scenario": "baseline",
+        "sent": 1125,
+        "received": 1125,
+        "authErrors": 0,
+        "intentionalLoss": 0,
+        "injected": 0,
+        "rebuffers": 0,
+        "queueDropped": 0,
+        "decoderDropped": 0,
+        "playbackHeadFrames": 1137893,
+        "totalWrittenFrames": 1149952,
+        "maxSenderLateMs": 0
+      },
+      {
+        "scenario": "cpu-io",
+        "sent": 1125,
+        "received": 1125,
+        "authErrors": 0,
+        "intentionalLoss": 0,
+        "injected": 0,
+        "rebuffers": 0,
+        "queueDropped": 0,
+        "decoderDropped": 0,
+        "playbackHeadFrames": 1136744,
+        "totalWrittenFrames": 1148928,
+        "maxSenderLateMs": 2
+      },
+      {
+        "scenario": "hold-650-buffer300",
+        "sent": 1125,
+        "received": 1125,
+        "authErrors": 0,
+        "intentionalLoss": 0,
+        "injected": 2,
+        "rebuffers": 1,
+        "queueDropped": 0,
+        "decoderDropped": 0,
+        "playbackHeadFrames": 1134802,
+        "totalWrittenFrames": 1146880,
+        "maxSenderLateMs": 650
+      },
+      {
+        "scenario": "hold-650-buffer1000",
+        "sent": 1125,
+        "received": 1125,
+        "authErrors": 0,
+        "intentionalLoss": 0,
+        "injected": 2,
+        "rebuffers": 0,
+        "queueDropped": 0,
+        "decoderDropped": 0,
+        "playbackHeadFrames": 1111457,
+        "totalWrittenFrames": 1139712,
+        "maxSenderLateMs": 650
+      },
+      {
+        "scenario": "hold-1250-buffer1000",
+        "sent": 1125,
+        "received": 1125,
+        "authErrors": 0,
+        "intentionalLoss": 0,
+        "injected": 2,
+        "rebuffers": 1,
+        "queueDropped": 0,
+        "decoderDropped": 0,
+        "playbackHeadFrames": 1108366,
+        "totalWrittenFrames": 1136640,
+        "maxSenderLateMs": 1250
+      },
+      {
+        "scenario": "loss-650-buffer1000",
+        "sent": 1065,
+        "received": 1065,
+        "authErrors": 0,
+        "intentionalLoss": 60,
+        "injected": 2,
+        "rebuffers": 1,
+        "queueDropped": 0,
+        "decoderDropped": 0,
+        "playbackHeadFrames": 1045441,
+        "totalWrittenFrames": 1074176,
+        "maxSenderLateMs": 0
+      }
+    ]
+  },
+  {
+    "config": "2core",
+    "environment": [
+      "ENV sdk=23 abi=x86_64, x86 cores=2",
+      "ENV MemTotal:        1019900 kB MemFree:          234252 kB Buffers:            3844 kB"
+    ],
+    "results": [
+      {
+        "scenario": "baseline",
+        "sent": 1125,
+        "received": 1125,
+        "authErrors": 0,
+        "intentionalLoss": 0,
+        "injected": 0,
+        "rebuffers": 0,
+        "queueDropped": 0,
+        "decoderDropped": 0,
+        "playbackHeadFrames": 1130997,
+        "totalWrittenFrames": 1142784,
+        "maxSenderLateMs": 1
+      },
+      {
+        "scenario": "cpu-io",
+        "sent": 1125,
+        "received": 1125,
+        "authErrors": 0,
+        "intentionalLoss": 0,
+        "injected": 0,
+        "rebuffers": 0,
+        "queueDropped": 0,
+        "decoderDropped": 0,
+        "playbackHeadFrames": 1134445,
+        "totalWrittenFrames": 1145856,
+        "maxSenderLateMs": 9
+      },
+      {
+        "scenario": "hold-650-buffer300",
+        "sent": 1125,
+        "received": 1125,
+        "authErrors": 0,
+        "intentionalLoss": 0,
+        "injected": 2,
+        "rebuffers": 1,
+        "queueDropped": 0,
+        "decoderDropped": 0,
+        "playbackHeadFrames": 1133653,
+        "totalWrittenFrames": 1145856,
+        "maxSenderLateMs": 650
+      },
+      {
+        "scenario": "hold-650-buffer1000",
+        "sent": 1125,
+        "received": 1125,
+        "authErrors": 0,
+        "intentionalLoss": 0,
+        "injected": 2,
+        "rebuffers": 0,
+        "queueDropped": 0,
+        "decoderDropped": 0,
+        "playbackHeadFrames": 1098814,
+        "totalWrittenFrames": 1127424,
+        "maxSenderLateMs": 650
+      },
+      {
+        "scenario": "hold-1250-buffer1000",
+        "sent": 1125,
+        "received": 1125,
+        "authErrors": 0,
+        "intentionalLoss": 0,
+        "injected": 2,
+        "rebuffers": 1,
+        "queueDropped": 0,
+        "decoderDropped": 0,
+        "playbackHeadFrames": 1096872,
+        "totalWrittenFrames": 1125376,
+        "maxSenderLateMs": 1250
+      },
+      {
+        "scenario": "loss-650-buffer1000",
+        "sent": 1065,
+        "received": 1065,
+        "authErrors": 0,
+        "intentionalLoss": 60,
+        "injected": 2,
+        "rebuffers": 1,
+        "queueDropped": 0,
+        "decoderDropped": 0,
+        "playbackHeadFrames": 1037395,
+        "totalWrittenFrames": 1065984,
+        "maxSenderLateMs": 0
+      }
+    ]
+  }
+]
