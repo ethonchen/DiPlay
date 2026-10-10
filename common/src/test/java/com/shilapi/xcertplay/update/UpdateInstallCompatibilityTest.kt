@@ -14,7 +14,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [25, 28, 33])
+@Config(sdk = [23, 25, 28, 33])
 class UpdateInstallCompatibilityTest {
     @Test fun installationUsesOnlySupportedPermissionApis() {
         val activity = Robolectric.buildActivity(DiPlayActivity::class.java).get()
