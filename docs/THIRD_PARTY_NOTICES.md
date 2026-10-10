@@ -53,3 +53,12 @@ The static site layout, CSS and generator adapt DiAuto (AGPL-3.0). The AGPL lice
 Required Notice: Copyright AndyShaman (https://github.com/AndyShaman/BYDMate)
 
 The maneuver PNGs under `shared/src/main/assets/byd-hud-icons` were imported from BYDMate. Its PolyForm Noncommercial 1.0.0 terms and required notice are included alongside the assets. These files are separate from the project code license; upstream describes them as donor assets and their original provenance is not independently established. The validated DiLink5.1 windshield path uses factory turn codes rather than these images.
+
+
+## Android 6 asynchronous API compatibility
+
+The API-23 fork uses [android-retrofuture 1.7.4](https://github.com/retrostreams/android-retrofuture)
+and its android-retrostreams dependency to retain the upstream CompletableFuture
+ambient-light lifecycle on Android 6. The backport uses the GNU GPL version 2
+with the Classpath Exception, with CC0 1.0 for JSR-166-derived code. Its source,
+notices and license texts are available in the linked upstream repository.

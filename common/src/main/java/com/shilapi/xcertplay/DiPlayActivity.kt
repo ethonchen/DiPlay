@@ -157,7 +157,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private val windowLearningPresses = WheelKeyPresses()
     private val endWindowLearning = Runnable { cancelKeyLearning() }
     private var page = "home"
-    internal var ambientSupportCheck: (Context) -> java.util.concurrent.CompletableFuture<Boolean> = AmbientMusicController::checkSupport
+    internal var ambientSupportCheck: (Context) -> java9.util.concurrent.CompletableFuture<Boolean> = AmbientMusicController::checkSupport
     private var settingsCategory = SettingsCategory.OVERVIEW
     private var connectionSettingsReturnCategory: SettingsCategory? = null
     private var setupStep = SetupGuide.STEP_CAR
@@ -5374,8 +5374,11 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         return dp(if (compact) 44 else 52) * 20f / 56
     }
 
+    private fun buttonCornerRadius(heightPx: Int = 0): Float =
+        if (heightPx > 0) minOf(dp(24).toFloat(), heightPx * 20f / 56) else layoutCornerRadius()
+
     private fun buttonShape(color: Int, stroke: Int, heightPx: Int = 0) = rounded(color, stroke).apply {
-        cornerRadius = if (heightPx > 0) minOf(dp(24).toFloat(), heightPx * 20f / 56) else layoutCornerRadius()
+        cornerRadius = buttonCornerRadius(heightPx)
     }
 
     private fun buttonFocusRing() = focusRing(
@@ -5395,7 +5398,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         doOnLayout {
             val shape = buttonShape(if (primary) ACCENT else BUTTON, if (primary) ACCENT else BORDER, height)
             background = android.graphics.drawable.RippleDrawable(ColorStateList.valueOf(RIPPLE), shape, null)
-            foreground = focusRing((shape.cornerRadius / resources.displayMetrics.density).roundToInt())
+            foreground = focusRing((buttonCornerRadius(height) / resources.displayMetrics.density).roundToInt())
         }
     }
 

@@ -42,6 +42,8 @@ android {
 }
 dependencies {
     coreLibraryDesugaring libs.desugar.jdk.libs
+    // Exposed in the ambient-light async API; CompletableFuture is absent on API 23.
+    api libs.android.retrofuture
     implementation libs.androidx.app
     implementation libs.bouncycastle
     implementation libs.jmdns

@@ -6,6 +6,7 @@ import android.content.Context
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import androidx.annotation.RequiresApi
 import java.io.File
 import java.io.IOException
 
@@ -38,6 +39,7 @@ internal object UpdateApkExport {
         return apk.copyTo(File(directory, apk.name), overwrite = true)
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun copyToDownloads(resolver: ContentResolver, apk: File): String {
         // Only entries created by this app are visible to these queries, so other apps' files are safe.
         resolver.delete(

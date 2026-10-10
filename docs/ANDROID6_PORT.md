@@ -223,3 +223,12 @@ The optimized workflow also runs on future main and upstream-sync branches,
 using the existing signing cache and API-23 runtime smoke checks. Verification
 results are recorded in the synchronization pull request. Physical Q7 audio,
 Siri/calls, USB and video performance remain device checks.
+
+
+The new ambient-light futures use android-retrofuture 1.7.4 because Android 6
+has no CompletableFuture and core library desugaring does not supply it. The
+existing lifecycle/callback logic and tests use the same backport. The optimized
+API-23 probe checks successful chaining and exceptional completion. Button
+rounding reuses its computed radius without calling API-24 GradientDrawable's
+getter; the Downloads helper and BYD call-popup tool declare their guarded
+newer-platform requirements. All API lint remains enabled.

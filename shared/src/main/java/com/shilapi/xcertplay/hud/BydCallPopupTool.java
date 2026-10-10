@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /** Detached shell helper: one fixed package/op, sequenced commands, ten-second recovery lease. */
+@androidx.annotation.RequiresApi(27)
 public final class BydCallPopupTool {
     static final String DIRECTORY = "/data/local/tmp/diplay-call-popup";
     static final String PACKAGE = "com.byd.bluetoothcall";
