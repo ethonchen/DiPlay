@@ -20,7 +20,7 @@ def main() -> None:
     assert "package: name='com.shihab.diplay.hudtest'" in badging, "Wrong application package"
     if args.optimized:
         assert "application-debuggable" not in badging, "Optimized APK must not run debuggable"
-        assert "versionCode='36'" in badging and "versionName='0.2.15-android6-q7-slim'" in badging
+        assert "versionCode='37'" in badging and "versionName='0.2.16-android6-q7-slim'" in badging
         assert args.apk.stat().st_size < 12 * 1024 * 1024, "Optimized Q7 APK exceeded the size budget"
     signing = subprocess.check_output([str(args.build_tools / "apksigner"), "verify", "--verbose",
         "--print-certs", "--min-sdk-version", "23", str(args.apk)], text=True)

@@ -3,12 +3,14 @@ package com.shilapi.xcertplay
 import android.os.Build
 import com.shilapi.xcertplay.airplay.AirPlayCrypto
 import com.shilapi.xcertplay.mfi.LocalMfiProbe
+import com.shilapi.xcertplay.media.OpusEncoderSupport
 
 /** Explicit ADB entry point for testing the actual R8 output; never runs at app startup. */
 object Q7RuntimeProbe {
     @JvmStatic fun main(arguments: Array<String>) {
         check(Build.VERSION.SDK_INT == 23)
         LocalMfiProbe.main(arguments)
+        check(OpusEncoderSupport.isAvailable()) { "Opus microphone encoding unavailable on API 23" }
         val alice = AirPlayCrypto.x25519Generate()
         val bob = AirPlayCrypto.x25519Generate()
         check(AirPlayCrypto.x25519Shared(alice.privateKey, bob.publicKey)
@@ -31,6 +33,6 @@ object Q7RuntimeProbe {
             check(rejected) { "Tampered packet was accepted" }
             check(AirPlayCrypto.chachaOpen(key, nonce, sealed, aad).contentEquals(plain))
         }
-        println("q7-runtime PASS sdk=23 pairing=true authenticatedPackets=true implementation=${AirPlayCrypto.chachaImplementation}")
+        println("q7-runtime PASS sdk=23 pairing=true authenticatedPackets=true opusMicrophoneAvailable=true implementation=${AirPlayCrypto.chachaImplementation}")
     }
 }
