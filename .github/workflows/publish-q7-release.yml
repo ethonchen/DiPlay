@@ -1,0 +1,76 @@
+name: Publish verified Q7 release
+on:
+  push:
+    branches: [release/q7-0.2.16]
+permissions:
+  contents: read
+concurrency:
+  group: publish-q7-0.2.16
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'ethonchen/DiPlay'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_COMMIT: 'd3295f03dd06e57b6e98634167321a9ec90d91e0'
+      TESTED_COMMIT: 'd74d8107cfecfef5d4d57184302f7495964c0710'
+      TESTED_TREE: '4026bb9d96991999c818a82446c30884006f152a'
+      BUILD_RUN: '38049050879'
+      CHECK_RUN: '38049054216'
+      APK_SHA256: 'dd7ab89d303a5739c97b20ad433491fe3f6a5685e9d0e54583e6dd3d2db16c93'
+      RELEASE_TAG: v0.2.16-android6-q7-slim
+    steps:
+      - name: Require successful checks and the exact merged source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          test "$(gh api "repos/$repo/actions/runs/$BUILD_RUN" --jq .conclusion)" = success
+          test "$(gh api "repos/$repo/actions/runs/$BUILD_RUN" --jq .head_sha)" = "$TESTED_COMMIT"
+          test "$(gh api "repos/$repo/actions/runs/$CHECK_RUN" --jq .conclusion)" = success
+          test "$(gh api "repos/$repo/actions/runs/$CHECK_RUN" --jq .head_sha)" = "$TESTED_COMMIT"
+          test "$(gh api "repos/$repo/git/commits/$SOURCE_COMMIT" --jq .tree.sha)" = "$TESTED_TREE"
+          test "$(gh api "repos/$repo/git/refs/heads/main" --jq .object.sha)" = "$SOURCE_COMMIT"
+      - name: Download and verify the exact API-23-tested optimized APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run download "$BUILD_RUN" --repo "$GITHUB_REPOSITORY" --name DiPlay-Q7-slim-standalone --dir artifacts
+          test -f artifacts/mobile-q7.apk
+          printf "%s  %s\n" "$APK_SHA256" artifacts/mobile-q7.apk | sha256sum --check --strict -
+          mkdir -p release
+          cp artifacts/mobile-q7.apk release/DiPlay-HHQ-Q7-Android6-0.2.16-slim.apk
+          (cd release && sha256sum DiPlay-HHQ-Q7-Android6-0.2.16-slim.apk > SHA256SUMS.txt)
+      - name: Publish the owner-requested APK release
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > release/notes.md <<'NOTES'
+          适用于 HHQ Q7 / Android 6.0 / ARMv7 的 DiPlay 瘦身版。
+          
+          - 同步上游 0.2.16 及其后续更新，包含上游 main 到 `2cdf45a22cf7eb1e0e3da106847bee63ab780325`（2026-10-10 19:31，北京时间）的全部已合入提交。
+          - 包含最新的 USB 充电电流设置：标准 2.4 A、降低 1.5 A、低 0.5 A，可用于排查 USB 供电不足导致的反复断连，下次 USB 连接时生效。
+          - 包含软件 Opus 麦克风回退、USB 分帧/读取与重试、无线地址恢复、音视频队列处理、低延迟/直接视频输出可选项、设置搜索与布局、后台更新检查及诊断导出改进。
+          - 保留 Android 6.0 / API 23、ARMv7、HHQ Q7 瘦身构建、原包名和签名，可覆盖此前的 Q7 兼容版并保留设置。
+          - 版本：`0.2.16-android6-q7-slim`，versionCode：37，包名：`com.shihab.diplay.hudtest`。
+          - 使用支持 API 23 的 WorkManager 2.11.2，保留后台更新功能；为新增异步功能加入 Android 6 兼容实现，并修复设置按钮的旧系统启动错误。
+          - 软件中的更新检查指向本 fork。低延迟、直接视频输出等实验选项默认关闭。
+          
+          APK 通过完整单元测试、Lint、打包/签名检查以及 Android 6 模拟器安装、设置启动和认证/解密检查。实车音频、Siri、USB 与流畅度仍需在 HHQ Q7 上验证。
+          
+          构建与验证：
+          - https://github.com/ethonchen/DiPlay/actions/runs/38049050879
+          - https://github.com/ethonchen/DiPlay/actions/runs/38049054216
+          
+          APK：5.95 MiB（6,239,239 字节）。
+          SHA-256：`dd7ab89d303a5739c97b20ad433491fe3f6a5685e9d0e54583e6dd3d2db16c93`。
+          NOTES
+          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --target "$SOURCE_COMMIT" --title "DiPlay 0.2.16 - HHQ Q7 Android 6 slim" \
+            --notes-file release/notes.md \
+            release/DiPlay-HHQ-Q7-Android6-0.2.16-slim.apk release/SHA256SUMS.txt
