@@ -213,8 +213,9 @@ API 23, ARMv7, the existing `.hudtest` application ID, update certificate and
 receive-decryptor reuse are retained. The added locale accesses use the API-23
 locale helper; the new call-speaker behavior keeps concurrent microphone
 insertion on `getOrPut` rather than the API-24 `computeIfAbsent`. Both the
-existing desugaring dependency and the upstream WorkManager dependency are
-included. The shared ambient-light consumer rules are retained for R8.
+existing desugaring dependency and WorkManager **2.11.2** are included.
+WorkManager 2.12 requires API 24; the last API-23-compatible maintenance line
+retains the same background-update APIs used here. The shared ambient-light consumer rules are retained for R8.
 
 Fork version code is **37**, optimized version **0.2.16-android6-q7-slim**.
 The fork update feed and explicitly selected runtime identity stay in place.
