@@ -98,6 +98,7 @@ internal enum class SettingsSection {
     CONNECTION_SETUP,
     DIAGNOSTICS,
     AUTOMATIC_CONNECTION,
+    USB_CONNECTION,
     BYD_ADB,
     DISPLAY_AND_PERFORMANCE,
     EXPERIMENTAL_DISPLAY,
@@ -121,6 +122,7 @@ internal object SettingsInformationArchitecture {
         SettingsCategory.CONNECTION to setOf(
             SettingsSection.CONNECTION_SETUP,
             SettingsSection.AUTOMATIC_CONNECTION,
+            SettingsSection.USB_CONNECTION,
             SettingsSection.BYD_ADB,
             SettingsSection.PERMISSIONS_AND_HELP,
         ),
@@ -1635,6 +1637,19 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             card.addView(button(getString(R.string.boot_start_repair), false) { repairBootStart() }, matchButton(6, 56))
             card.addView(label(getString(R.string.boot_start_repair_desc), 14, MUTED).apply { setPadding(0, dp(8), 0, dp(6)) })
             card.addView(button("${getString(R.string.choose_iphone_prefix)}${DiPlayPreferences.phoneName(this)}", false) { choosePhone() }, matchButton(12, 60))
+        }
+        filteredSection(content, SettingsSection.USB_CONNECTION,
+            getString(R.string.settings_usb_connection), R.drawable.ic_dp_connection) { card ->
+            val currents = UsbChargingCurrent.entries
+            choice(card, getString(R.string.settings_usb_charging), listOf(
+                getString(R.string.settings_usb_charging_normal),
+                getString(R.string.settings_usb_charging_reduced),
+                getString(R.string.settings_usb_charging_low),
+            ), currents.indexOf(AirPlayPersistence.loadUsbChargingCurrent(this)), reconnects = false) {
+                AirPlayPersistence.saveUsbChargingCurrent(this, currents[it])
+                if (!AirPlayPersistence.loadWirelessEnabled(this)) markReconnectNeeded()
+            }
+            card.addView(label(getString(R.string.settings_usb_charging_description), 14, MUTED))
         }
         if (settingsSectionFilter?.contains(SettingsSection.BYD_ADB) != false) bydAdbSettings(content)
         filteredSection(content, SettingsSection.DISPLAY_AND_PERFORMANCE,
@@ -4892,6 +4907,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                     appendLine("Android ${Build.VERSION.RELEASE} / API ${Build.VERSION.SDK_INT}")
                     appendLine("Head unit: ${Build.MANUFACTURER} ${Build.MODEL}")
                     appendLine("Connection: ${if (AirPlayPersistence.loadWirelessEnabled(appContext)) "wireless" else "USB"}")
+                    AirPlayPersistence.loadUsbChargingCurrent(appContext).let {
+                        appendLine("USB charging offer: ${it.key} (${it.milliAmps} mA)")
+                    }
                     appendLine("Authentication: local experimental beta identity; no remote fallback")
                     appendLine("CarPlay setup: ${if (setupError == null) "ready" else "authentication unavailable"}")
                     appendLine("Saved video preference (may differ from active session): ${if (AirPlayPersistence.loadHevcEnabled(appContext)) "HEVC" else "H.264"}; ${AirPlayPersistence.loadFps(appContext)} fps")

@@ -1,6 +1,6 @@
 # Android 6.0 / API 23 port
 
-This branch tracks upstream through `09399b14805195bb027bfbc1ef2f1482e59625f5`
+This branch tracks upstream through `2cdf45a22cf7eb1e0e3da106847bee63ab780325`
 (0.2.16 plus the subsequent connection, microphone, update and diagnostic fixes), targeting
 Android 6.0, retaining the current UI and protocol implementation. It is an
 experimental compatibility target, not a claim of vehicle validation.
@@ -202,7 +202,9 @@ separate device check.
 
 ## Upstream synchronization: 0.2.16 and subsequent fixes (2026-10-10)
 
-The merge preserves all upstream main ancestry through `09399b14805195bb027bfbc1ef2f1482e59625f5`.
+The merge preserves all upstream main ancestry through `2cdf45a22cf7eb1e0e3da106847bee63ab780325`.
+This includes the configurable wired USB charging offer (2.4 A, 1.5 A or 0.5 A),
+with persistence coverage on API 23 as well as API 29.
 It includes the 0.2.16 release and all later commits available at synchronization:
 software Opus microphone encoding, wired USB framing/read/retry fixes, wireless
 address recovery and scan-pause lifecycle fixes, bounded video recovery,

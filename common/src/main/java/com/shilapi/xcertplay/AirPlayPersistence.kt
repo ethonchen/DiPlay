@@ -108,6 +108,7 @@ object AirPlayPersistence {
     private const val KEY_BT_SUSPEND_DELAY = "bt_suspend_delay_seconds"
     private const val KEY_LOCATION_REPORTING_ENABLED = "location_reporting_enabled"
     private const val KEY_EXTERNAL_CONTROLLER = "external_controller"
+    private const val KEY_USB_CHARGING_CURRENT = "usb_charging_current"
     private const val KEY_MFI_TARGET = "mfi_target"
     private const val KEY_MFI_I2C_PATH = "mfi_i2c_path"
     private const val KEY_REMOTE_MFI_SERVER = "remote_mfi_server"
@@ -480,6 +481,15 @@ object AirPlayPersistence {
     fun saveExternalController(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putBoolean(KEY_EXTERNAL_CONTROLLER, enabled).apply()
+    }
+
+    fun loadUsbChargingCurrent(context: Context): UsbChargingCurrent = UsbChargingCurrent.fromKey(
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_USB_CHARGING_CURRENT, null),
+    )
+
+    fun saveUsbChargingCurrent(context: Context, current: UsbChargingCurrent) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(KEY_USB_CHARGING_CURRENT, current.key).apply()
     }
 
     fun loadLocationReportingEnabled(context: Context): Boolean =

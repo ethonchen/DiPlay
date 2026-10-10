@@ -611,6 +611,12 @@
     <string name="wheel_joystick_description">Кнопка медіа BYD вмикає й вимикає джойстик для центрального екрана CarPlay, як крутилка в авто. Поки він увімкнений, колесо гучності або ⏮ ⏭ рухають вибір, ⏯ вибирає, а кастомна кнопка повертає назад; музикою й гучністю ці кнопки тоді не керують. Під час дзвінка кнопки працюють для дзвінка. На деяких авто вибір рухає й гучність на консолі.</string>
     <string name="settings_external_controller">Зовнішній контролер (експериментально)</string>
     <string name="settings_external_controller_description">Клавіші підключеної Bluetooth-клавіатури, пульта або поворотного контролера переміщують і підтверджують вибір у CarPlay, як поворотна ручка автомобіля. Сенсорний екран продовжує працювати. Застосовується одразу.</string>
+    <string name="settings_usb_connection">USB-підключення</string>
+    <string name="settings_usb_charging">Заряджання iPhone</string>
+    <string name="settings_usb_charging_normal">Звичайне (2,4 А)</string>
+    <string name="settings_usb_charging_reduced">Знижене (1,5 А)</string>
+    <string name="settings_usb_charging_low">Низьке (0,5 А)</string>
+    <string name="settings_usb_charging_description">Струм заряджання, який DiPlay дозволяє iPhone через USB. Якщо дротовий CarPlay обривається кожні кілька секунд і iPhone сам перепідключається, USB-порт автомобіля може не видавати достатньо живлення: спробуйте «Знижене», потім «Низьке». iPhone заряджатиметься повільніше. Застосовується під час наступного USB-підключення.</string>
     <string name="wheel_joystick_auto_off">Джойстик вимикається сам</string>
     <string name="wheel_joystick_auto_off_description">Через 15 секунд без натискань і коли стартує маршрут кнопки знову керують музикою й гучністю.</string>
     <string name="wheel_joystick_on">Джойстик увімкнено</string>
