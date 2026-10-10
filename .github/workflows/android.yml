@@ -53,6 +53,7 @@ jobs:
             shared/build/reports/android6-api-lint.txt
             common/build/reports/tests/
             common/build/reports/android6-api-lint.txt
+            common/build/reports/album-artwork-ui/
             mobile/build/reports/lint-results-debug.html
             samples/home/build/reports/tests/
             samples/home/build/reports/lint-results-debug.html

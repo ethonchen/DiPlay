@@ -1,7 +1,7 @@
 # Android 6.0 / API 23 port
 
-This branch tracks upstream through `9e244d958afe6b8fd79ade49769ce25a944f397b`
-(0.2.15 plus the subsequent issue-template update), targeting
+This branch tracks upstream through `09399b14805195bb027bfbc1ef2f1482e59625f5`
+(0.2.16 plus the subsequent connection, microphone, update and diagnostic fixes), targeting
 Android 6.0, retaining the current UI and protocol implementation. It is an
 experimental compatibility target, not a claim of vehicle validation.
 
@@ -46,7 +46,7 @@ Gradle wrapper. Compilation against SDK 37 does not set the installation minimum
 
 CI uploads `DiPlay-Android6-source-only` only after all checks pass. The APK is
 `mobile/build/outputs/apk/debug/mobile-debug.apk`, package
-`com.shihab.diplay.hudtest`, and version `0.2.15-android6-q7-hud-test`.
+`com.shihab.diplay.hudtest`, and version `0.2.16-android6-q7-hud-test`.
 Do not install the Home/map-host APK on Android 6.
 
 **The CI/source APK does not contain an accessory authentication identity.** It
@@ -130,7 +130,7 @@ DIPLAY_DEBUG_KEYSTORE_PATH=/absolute/path/to/the-existing/debug.keystore \
 ```
 
 Output: `mobile/build/outputs/apk/q7/mobile-q7.apk`, package
-`com.shihab.diplay.hudtest`, code 36, version `0.2.15-android6-q7-slim`.
+`com.shihab.diplay.hudtest`, code 37, version `0.2.16-android6-q7-slim`.
 The required signer SHA-256 is
 `5113b2d373d54973ac2fe837ab1d0f4132dba3e4fba64d4027bd4d41823d163f`.
 The dedicated workflow refuses a missing signing cache or changed certificate,
@@ -198,3 +198,27 @@ the fork's. The merge branch runs the required tests/lint/debug builds plus the
 optimized Q7 APK checks and API-23 installation/runtime smoke. CI evidence is
 linked in the synchronization pull request; physical Q7 smoothness remains a
 separate device check.
+
+
+## Upstream synchronization: 0.2.16 and subsequent fixes (2026-10-10)
+
+The merge preserves all upstream main ancestry through `09399b14805195bb027bfbc1ef2f1482e59625f5`.
+It includes the 0.2.16 release and all later commits available at synchronization:
+software Opus microphone encoding, wired USB framing/read/retry fixes, wireless
+address recovery and scan-pause lifecycle fixes, bounded video recovery,
+optional low-latency/direct video output, revised settings/search, background
+update checks, visible diagnostic exports, and opt-in BYD/HID features.
+
+API 23, ARMv7, the existing `.hudtest` application ID, update certificate and
+receive-decryptor reuse are retained. The added locale accesses use the API-23
+locale helper; the new call-speaker behavior keeps concurrent microphone
+insertion on `getOrPut` rather than the API-24 `computeIfAbsent`. Both the
+existing desugaring dependency and the upstream WorkManager dependency are
+included. The shared ambient-light consumer rules are retained for R8.
+
+Fork version code is **37**, optimized version **0.2.16-android6-q7-slim**.
+The fork update feed and explicitly selected runtime identity stay in place.
+The optimized workflow also runs on future main and upstream-sync branches,
+using the existing signing cache and API-23 runtime smoke checks. Verification
+results are recorded in the synchronization pull request. Physical Q7 audio,
+Siri/calls, USB and video performance remain device checks.
