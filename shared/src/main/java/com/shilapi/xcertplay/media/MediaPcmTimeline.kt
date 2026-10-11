@@ -16,7 +16,7 @@ internal class MediaPcmTimeline(private val sampleRate: Int) {
         if (previous == null) return 0
         // The source's unsigned 32-bit RTP clock wraps roughly every 25 hours at 48 kHz.
         val gap = (start - previous) and MASK
-        if (gap == 0L || gap == MASK) return 0 // allow one frame of timestamp rounding
+        if (gap <= 1L || gap == MASK) return 0 // allow one frame of timestamp rounding
         if (gap > sampleRate * 2L) {
             resets++ // seek, duplicate/backward timestamp or long discontinuity: rebase, never allocate it
             return 0
