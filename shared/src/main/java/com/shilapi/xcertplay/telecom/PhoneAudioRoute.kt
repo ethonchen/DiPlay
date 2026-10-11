@@ -3,6 +3,7 @@ package com.shilapi.xcertplay.telecom
 import android.content.Context
 import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import com.shilapi.xcertplay.hud.BydOutputSettings
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
@@ -133,6 +134,7 @@ object PhoneAudioRoute {
     /** Safe to call often; the first call sets everything up and later ones re-read the settings. */
     @Synchronized
     fun attach(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val app = context.applicationContext
         if (controller == null) {
             controller = PhoneAudioRouteController(
@@ -178,7 +180,8 @@ object PhoneAudioRoute {
      * True when the car's phone audio state handles the CarPlay call's echo, so DiPlay must not also
      * run its own canceller or the platform effects on the call microphone.
      */
-    fun carPlayCallsUseCarAudio(): Boolean = controller?.carPlayCallsUseCarAudio() == true
+    fun carPlayCallsUseCarAudio(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+        controller?.carPlayCallsUseCarAudio() == true
 
     /** DiPlay's own call microphone shows up in the recording list; it is not another app's call. */
     internal fun ownCarPlayCallActive(): Boolean = carPlayCallActive
@@ -189,6 +192,7 @@ object PhoneAudioRoute {
     }
 
     @Synchronized
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun syncWatcher(context: Context) {
         // The recording and playback callbacks the watcher relies on arrive with Android 8.
         val wantWatcher = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && BydOutputSettings.phoneAudioRouteApps(context)

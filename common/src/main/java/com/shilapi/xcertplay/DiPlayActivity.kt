@@ -1851,19 +1851,21 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 AirPlayPersistence.saveCallVoiceFilter(this, it)
                 markReconnectNeeded()
             }
-            toggle(card, getString(R.string.phone_audio_route), getString(R.string.phone_audio_route_description),
-                BydOutputSettings.phoneAudioRoute(this)) {
-                BydOutputSettings.setPhoneAudioRoute(this, it)
-                PhoneAudioRoute.settingsChanged(this)
-            }
-            toggle(card, getString(R.string.phone_audio_route_apps), getString(R.string.phone_audio_route_apps_description),
-                BydOutputSettings.phoneAudioRouteApps(this)) {
-                BydOutputSettings.setPhoneAudioRouteApps(this, it)
-                PhoneAudioRoute.settingsChanged(this)
-                // The watcher for other apps' calls needs DiPlay running outside a CarPlay session too, which
-                // the accessibility service provides.
-                if (it && !WheelKeyService.connected()) {
-                    Thread({ WheelKeyService.enableOverAdb(this) }, "diplay-phone-audio-enable").start()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                toggle(card, getString(R.string.phone_audio_route), getString(R.string.phone_audio_route_description),
+                    BydOutputSettings.phoneAudioRoute(this)) {
+                    BydOutputSettings.setPhoneAudioRoute(this, it)
+                    PhoneAudioRoute.settingsChanged(this)
+                }
+                toggle(card, getString(R.string.phone_audio_route_apps), getString(R.string.phone_audio_route_apps_description),
+                    BydOutputSettings.phoneAudioRouteApps(this)) {
+                    BydOutputSettings.setPhoneAudioRouteApps(this, it)
+                    PhoneAudioRoute.settingsChanged(this)
+                    // The watcher for other apps' calls needs DiPlay running outside a CarPlay session too, which
+                    // the accessibility service provides.
+                    if (it && !WheelKeyService.connected()) {
+                        Thread({ WheelKeyService.enableOverAdb(this) }, "diplay-phone-audio-enable").start()
+                    }
                 }
             }
             audioFocusControls(card)
@@ -3307,28 +3309,28 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 getString(R.string.settings_cluster_speedometer_horizontal), ClusterSpeedometerOverlay.xPercents,
                 AirPlayPersistence.loadClusterSpeedometerX(this),
             ) { value -> "$value %" }.also { row ->
-                row.getChildAt(0).layoutDirection = android.text.TextUtils.getLayoutDirectionFromLocale(resources.configuration.locales[0])
+                row.getChildAt(0).layoutDirection = android.text.TextUtils.getLayoutDirectionFromLocale(resources.configuration.primaryLocale())
                 row.onSave = { value -> AirPlayPersistence.saveClusterSpeedometerX(this, value) }
             })
             card.addView(overlaySliderRow(
                 getString(R.string.settings_cluster_speedometer_vertical), ClusterSpeedometerOverlay.yPercents,
                 AirPlayPersistence.loadClusterSpeedometerY(this),
             ) { value -> "$value %" }.also { row ->
-                row.getChildAt(0).layoutDirection = android.text.TextUtils.getLayoutDirectionFromLocale(resources.configuration.locales[0])
+                row.getChildAt(0).layoutDirection = android.text.TextUtils.getLayoutDirectionFromLocale(resources.configuration.primaryLocale())
                 row.onSave = { value -> AirPlayPersistence.saveClusterSpeedometerY(this, value) }
             })
             card.addView(overlaySliderRow(
                 getString(R.string.settings_cluster_speedometer_size), ClusterSpeedometerOverlay.sizePercents,
                 AirPlayPersistence.loadClusterSpeedometerSize(this),
             ) { value -> "$value %" }.also { row ->
-                row.getChildAt(0).layoutDirection = android.text.TextUtils.getLayoutDirectionFromLocale(resources.configuration.locales[0])
+                row.getChildAt(0).layoutDirection = android.text.TextUtils.getLayoutDirectionFromLocale(resources.configuration.primaryLocale())
                 row.onSave = { value -> AirPlayPersistence.saveClusterSpeedometerSize(this, value) }
             })
             card.addView(overlaySliderRow(
                 getString(R.string.settings_cluster_speedometer_opacity), ClusterSpeedometerOverlay.opacityPercents,
                 AirPlayPersistence.loadClusterSpeedometerOpacity(this),
             ) { value -> "$value %" }.also { row ->
-                row.getChildAt(0).layoutDirection = android.text.TextUtils.getLayoutDirectionFromLocale(resources.configuration.locales[0])
+                row.getChildAt(0).layoutDirection = android.text.TextUtils.getLayoutDirectionFromLocale(resources.configuration.primaryLocale())
                 row.onSave = { value -> AirPlayPersistence.saveClusterSpeedometerOpacity(this, value) }
             })
         }
