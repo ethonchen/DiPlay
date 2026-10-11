@@ -1,0 +1,21 @@
+name: Publish verified Q7 upstream release
+on:
+  push:
+    branches: [publish/q7-upstream-20261011]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: q7-upstream-release-20261011
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'ethonchen/DiPlay' && github.ref == 'refs/heads/publish/q7-upstream-20261011'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify tested APK provenance and publish the requested release
+        run: python3 scripts/publish_q7_upstream_release.py
