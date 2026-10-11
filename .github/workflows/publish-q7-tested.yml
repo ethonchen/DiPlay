@@ -1,0 +1,21 @@
+name: Publish verified Q7 test releases
+on:
+  push:
+    branches: [publish/q7-tested-20261011]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: publish-q7-tested-20261011
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'ethonchen/DiPlay' && github.ref == 'refs/heads/publish/q7-tested-20261011'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify successful source builds and exact APKs, then publish both test releases
+        run: python3 scripts/publish_q7_releases.py
