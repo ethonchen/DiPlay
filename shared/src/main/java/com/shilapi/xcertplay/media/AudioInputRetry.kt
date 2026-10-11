@@ -1,20 +1,21 @@
 package com.shilapi.xcertplay.media
 
-/** Release pending output before retrying the same compressed packet, with a bounded codec wait. */
+import java.util.concurrent.TimeUnit
+
+/** Share the upstream decoder pump while retaining Q7 retry diagnostics. */
 internal fun audioInputBuffer(
     running: () -> Boolean,
     drain: () -> Unit,
     dequeue: () -> Int,
     onRetry: () -> Unit,
-): Int {
-    var retries = 0
-    while (running()) {
-        val index = dequeue()
-        if (index >= 0) return index
-        if (retries >= 4) return index
-        retries++
-        onRetry()
-        drain()
-    }
-    return -1
-}
+    nanoTime: () -> Long = System::nanoTime,
+    timeoutNs: Long = TimeUnit.MILLISECONDS.toNanos(500),
+): Int = DecoderInputPump.acquire(
+    running = running,
+    drain = drain,
+    dequeue = {
+        if (!running()) -1 else dequeue().also { if (it < 0) onRetry() }
+    },
+    nanoTime = nanoTime,
+    timeoutNs = timeoutNs,
+)
