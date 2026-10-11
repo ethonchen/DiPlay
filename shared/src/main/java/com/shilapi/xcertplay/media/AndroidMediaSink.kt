@@ -1633,6 +1633,7 @@ private class AudioRenderer(
     private var firstInputQueuedLogged = false
     private var inputQueued = 0
     private var inputDropped = 0
+    private var inputRetries = 0
     private var shortOpusPackets = 0
     private var decoderUnavailablePackets = 0
     private var outputBuffers = 0
@@ -1642,6 +1643,12 @@ private class AudioRenderer(
     private val lastArrivalNs = AtomicLong()
     private val maxArrivalGapMs = AtomicLong()
     private val frameBytes = if (format.channels >= 2) 4 else 2
+    // Only UDP AAC music. Buffered audio, navigation, Siri and calls retain their own timing.
+    private val mediaTimeline = if (format.payloadType == 102 && format.audioType == "media" &&
+        format.codec == AudioCodecKind.AAC_LC) MediaPcmTimeline(format.sampleRate) else null
+    private val gapPcm = ByteArray(4 * 1024)
+    private val gapTail = ByteArray(frameBytes)
+    private var concealedFrames = 0L
     private var totalWrittenFrames = 0L
     private val ambientMedia = AmbientMusicActivityPolicy.acceptsAudio(format.audioType, format.payloadType)
     private val ambientEnvelope = AmbientMusicEnvelope()
@@ -1705,6 +1712,7 @@ private class AudioRenderer(
 
     private fun run() {
         try {
+            runCatching { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO) }
             runCatching { report("Audio: starting api=${Build.VERSION.SDK_INT} " +
                 "audioType=${format.audioType} codec=${format.codec} rate=${format.sampleRate} channels=${format.channels} " +
                 "mapping=${if (advancedAudioChannelMapping) "automotive" else "mobile"} " +
@@ -2071,8 +2079,14 @@ private class AudioRenderer(
     private fun feedCodec(payload: ByteArray, presentationTimeUs: Long) {
         val codec = codec ?: run { decoderUnavailablePackets++; return }
         diagnosticStage = "decoder-input"
-        val index = codec.dequeueInputBuffer(INPUT_TIMEOUT_US)
+        val index = audioInputBuffer(
+            running = { running },
+            drain = { drainCodec(codec) },
+            dequeue = { codec.dequeueInputBuffer(INPUT_TIMEOUT_US) },
+            onRetry = { inputRetries++ },
+        )
         if (index < 0) {
+            if (!running) return
             inputDropped++
             if (inputDropped == 1) {
                 Log.w(
@@ -2153,12 +2167,31 @@ private class AudioRenderer(
                     } finally {
                         codec.releaseOutputBuffer(index, false)
                     }
-                    if (copied) writePcm(pcm, 0, size)
+                    if (copied) writeDecodedPcm(pcm, size, info.presentationTimeUs)
                     if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) return
                 }
                 else -> return
             }
         }
+    }
+
+    private fun writeDecodedPcm(data: ByteArray, length: Int, presentationTimeUs: Long) {
+        val missing = mediaTimeline?.missingFrames(presentationTimeUs, length / frameBytes) ?: 0
+        var filled = 0
+        while (filled < missing && running) {
+            val frames = minOf(missing - filled, gapPcm.size / frameBytes)
+            val bytes = frames * frameBytes
+            PcmGapFade.silenceChunk(gapPcm, bytes, filled, format.sampleRate, gapTail)
+            val before = totalWrittenFrames
+            writePcm(gapPcm, 0, bytes)
+            val accepted = (totalWrittenFrames - before).toInt()
+            concealedFrames += accepted
+            if (accepted <= 0) break
+            filled += accepted
+        }
+        if (missing > 0) PcmGapFade.fadeIn(data, 0, length, format.sampleRate, frameBytes)
+        writePcm(data, 0, length)
+        if (length >= frameBytes) data.copyInto(gapTail, 0, length - frameBytes, length)
     }
 
     private fun writePcm(data: ByteArray, offset: Int = 0, length: Int = data.size) {
@@ -2311,6 +2344,8 @@ private class AudioRenderer(
             // Keep this separate: the exported diagnostic recorder caps each line at 700 characters.
             val decoderLine = "Audio: decoder stats audioType=${format.audioType} codec=${format.codec} " +
                 "inputQueuedTotal=$inputQueued inputDroppedTotal=$inputDropped " +
+                "inputRetriesTotal=$inputRetries concealedFramesTotal=$concealedFrames " +
+                "timelineGapEventsTotal=${mediaTimeline?.gapEvents ?: 0} timelineResetsTotal=${mediaTimeline?.resets ?: 0} " +
                 "shortOpusPacketsTotal=$shortOpusPackets decoderUnavailablePacketsTotal=$decoderUnavailablePackets " +
                 "outputBuffersTotal=$outputBuffers ended=$force"
             Log.i(STATS_TAG, decoderLine)
