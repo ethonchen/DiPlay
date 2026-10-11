@@ -13,6 +13,7 @@ import java.io.BufferedReader
 import java.io.Closeable
 import java.io.IOException
 import java.io.InputStreamReader
+import java.net.BindException
 import java.net.Inet4Address
 import java.net.Inet6Address
 import java.net.InetAddress
@@ -142,6 +143,7 @@ class CarPlayBonjour(
     private val useInterfaceMdns: Boolean = false,
     private val onEvent: (CarPlayBonjourEvent) -> Unit = {},
     additionalAddresses: List<InetAddress> = emptyList(),
+    private val onDiagnostic: (String) -> Unit = {},
 ) : Closeable {
     // Interface-bound mDNS does not need Android's NSD service, which may be absent on some head units.
     private val nsdManager: NsdManager by lazy {
@@ -157,6 +159,8 @@ class CarPlayBonjour(
     private val localAdvertisedAddress = advertisedHostAddress()
     private val advertisedAddresses = (listOfNotNull(localAdvertisedAddress) + additionalAddresses).distinct()
     @Volatile private var publishedFamilies = "none"
+    @Volatile private var mdnsMode = if (useInterfaceMdns) "interface" else "system"
+    private var interfaceDiscoveryActive = useInterfaceMdns
     private val addedCount = AtomicInteger()
     private val resolvedCount = AtomicInteger()
     private val addressMismatchCount = AtomicInteger()
@@ -169,7 +173,7 @@ class CarPlayBonjour(
         "bonjourAdded=${addedCount.get()} bonjourResolved=${resolvedCount.get()} " +
             "bonjourAddressMismatch=${addressMismatchCount.get()} connectProbes=${probeCount.get()} " +
             "connectProbe2xx=${successfulProbeCount.get()} lastProbe=${lastProbe.get()} " +
-            "mdnsFamilies=$publishedFamilies"
+            "mdnsFamilies=$publishedFamilies mdnsMode=$mdnsMode"
     private val multicastLock = (context.applicationContext ?: context)
         .getSystemService(WifiManager::class.java)
         .createMulticastLock("carplay-bonjour").apply { setReferenceCounted(false) }
@@ -224,10 +228,13 @@ class CarPlayBonjour(
     }
 
     private val registrationListener = object : NsdManager.RegistrationListener {
-        override fun onServiceRegistered(serviceInfo: NsdServiceInfo) = Unit
+        override fun onServiceRegistered(serviceInfo: NsdServiceInfo) {
+            diagnose("Bonjour system publication registered mode=$mdnsMode")
+        }
 
         override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
             Log.w(TAG, "AirPlay NSD registration failed code=$errorCode")
+            diagnose("Bonjour system publication failed code=$errorCode mode=$mdnsMode")
         }
 
         override fun onServiceUnregistered(serviceInfo: NsdServiceInfo) = Unit
@@ -240,6 +247,7 @@ class CarPlayBonjour(
     private val discoveryListener = object : NsdManager.DiscoveryListener {
         override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
             Log.w(TAG, "CarPlay control discovery failed code=$errorCode")
+            diagnose("Bonjour system discovery failed code=$errorCode mode=$mdnsMode")
         }
 
         override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
@@ -275,31 +283,22 @@ class CarPlayBonjour(
             try {
                 multicastLock.acquire()
                 if (useInterfaceMdns) {
-                    requireNotNull(localAdvertisedAddress) {
-                        "Interface mDNS requires a local advertised address"
-                    }
-                    // A JmDNS instance joins only its address family's multicast group.
-                    for (address in advertisedAddresses) {
-                        val dns = JmDNS.create(address, "carplay-${config.deviceId.replace(":", "")}")
-                        interfaceMdns.add(dns)
-                        dns.addServiceListener("$CARPLAY_CONTROL_SERVICE_TYPE.local.", interfaceListener)
-                        dns.registerService(ServiceInfo.create(
-                            "$AIRPLAY_SERVICE_TYPE.local.", config.deviceName, config.port,
-                            0, 0, CarPlayBonjourProtocol.airPlayTxtRecords(config, identity),
-                        ))
-                    }
-                    publishedFamilies = advertisedAddresses.joinToString(",") {
-                        if (it is Inet4Address) "IPv4" else "IPv6"
+                    try {
+                        startInterfaceMdns()
+                    } catch (error: IOException) {
+                        // Old head-unit firmware can reserve mDNS's wildcard port or refuse
+                        // a second family on it. System NSD does not need another app-owned
+                        // socket on that port; avoid restarting the whole CarPlay stack.
+                        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.M || !isBindConflict(error)) throw error
+                        interfaceMdns.forEach { dns -> runCatching { dns.close() } }
+                        interfaceMdns.clear()
+                        interfaceDiscoveryActive = false
+                        mdnsMode = "system-fallback"
+                        diagnose("Bonjour mDNS fallback=system reason=port-in-use udpPort=5353 api=${Build.VERSION.SDK_INT}")
+                        startSystemNsd()
                     }
                 } else {
-                    registerAirPlay()
-                    registrationRequested = true
-                    nsdManager.discoverServices(
-                        CARPLAY_CONTROL_SERVICE_TYPE,
-                        NsdManager.PROTOCOL_DNS_SD,
-                        discoveryListener,
-                    )
-                    discoveryRequested = true
+                    startSystemNsd()
                 }
                 worker = Thread(::runWorker, WORKER_NAME).apply {
                     isDaemon = true
@@ -324,6 +323,49 @@ class CarPlayBonjour(
                 throw error
             }
         }
+    }
+
+    private fun startInterfaceMdns() {
+        requireNotNull(localAdvertisedAddress) { "Interface mDNS requires a local advertised address" }
+        // API-23 car hotspots expose IPv4 plus link-local IPv6. One IPv4 registry is enough
+        // for discovery and avoids duplicate wildcard-port binds on their older socket stacks.
+        // Keep the AirPlay listeners and probe source addresses available in both families.
+        val addresses = if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.M) {
+            advertisedAddresses.firstOrNull { it is Inet4Address }?.let(::listOf) ?: advertisedAddresses
+        } else advertisedAddresses
+        for (address in addresses) {
+            val family = if (address is Inet4Address) "IPv4" else "IPv6"
+            diagnose("Bonjour mDNS starting family=$family udpPort=5353 api=${Build.VERSION.SDK_INT}")
+            val dns = JmDNS.create(address, "carplay-${config.deviceId.replace(":", "")}")
+            interfaceMdns.add(dns)
+            dns.addServiceListener("$CARPLAY_CONTROL_SERVICE_TYPE.local.", interfaceListener)
+            dns.registerService(ServiceInfo.create(
+                "$AIRPLAY_SERVICE_TYPE.local.", config.deviceName, config.port,
+                0, 0, CarPlayBonjourProtocol.airPlayTxtRecords(config, identity),
+            ))
+            diagnose("Bonjour mDNS ready family=$family udpPort=5353")
+        }
+        publishedFamilies = addresses.joinToString(",") { if (it is Inet4Address) "IPv4" else "IPv6" }
+    }
+
+    private fun startSystemNsd() {
+        registerAirPlay()
+        registrationRequested = true
+        nsdManager.discoverServices(CARPLAY_CONTROL_SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener)
+        discoveryRequested = true
+        publishedFamilies = "system"
+        diagnose("Bonjour system discovery started mode=$mdnsMode")
+    }
+
+    private fun isBindConflict(error: IOException): Boolean =
+        generateSequence<Throwable>(error) { it.cause }.take(8).any {
+            it.message?.contains("EADDRINUSE") == true ||
+                (it is BindException && it.message?.contains("already in use", ignoreCase = true) == true)
+        }
+
+    private fun diagnose(message: String) {
+        Log.i(TAG, message)
+        runCatching { onDiagnostic(message) }
     }
 
     override fun close() {
@@ -393,7 +435,7 @@ class CarPlayBonjour(
 
     private fun runWorker() {
         while (!closed) {
-            if (useInterfaceMdns) {
+            if (interfaceDiscoveryActive) {
                 try {
                     while (true) emit(discoveryEvents.poll() ?: break)
                     val (endpoint, address) = interfaceServices.poll(

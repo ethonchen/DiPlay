@@ -19,6 +19,20 @@ internal class P2pConfigBuildCompatibilityFailure(cause: NoSuchMethodError) :
 
 /** Only a rejection or recognized pre-create defect permits retry; timeout may still create a group. */
 internal object P2pStartupRecovery {
+    /** A false capability report removes every explicit 5 GHz request, including saved ones. */
+    fun plan(stationFrequency: Int?, preferred: P2pCreationRequest? = null,
+             preferredChannel: Int = WifiP2pChannels.AUTO,
+             bandRequests: Boolean = true,
+             fiveGhzSupported: Boolean? = null): List<P2pCreationRequest> {
+        val plan = unfilteredPlan(stationFrequency, preferred, preferredChannel, bandRequests)
+        if (fiveGhzSupported != false) return plan
+        val supported = plan.filter { it.mode != P2pCreationMode.BAND_5_GHZ && (it.frequencyMHz ?: 0) < 5000 }
+        if (supported.isEmpty()) throw P2pChannelUnavailableException(
+            preferredChannel, "This head unit reports no 5 GHz support; choose Auto or a 2.4 GHz channel",
+        )
+        return supported
+    }
+
     fun rememberedFrequency(frequency: Int): P2pCreationRequest? = when {
         frequency in 2412..2462 && (frequency - 2412) % 5 == 0 ->
             P2pCreationRequest(P2pCreationMode.FIXED_2_GHZ, frequency)
@@ -28,7 +42,7 @@ internal object P2pStartupRecovery {
     }
 
     /** A band-only request still needs channel selection, which some BYD drivers cannot do. */
-    fun plan(stationFrequency: Int?, preferred: P2pCreationRequest? = null,
+    private fun unfilteredPlan(stationFrequency: Int?, preferred: P2pCreationRequest? = null,
              preferredChannel: Int = WifiP2pChannels.AUTO,
              bandRequests: Boolean = true): List<P2pCreationRequest> = buildList {
         WifiP2pChannels.frequencyMhz(preferredChannel)?.let {
@@ -96,9 +110,10 @@ internal object P2pStartupRecovery {
         preferred: P2pCreationRequest? = null,
         preferredChannel: Int = WifiP2pChannels.AUTO,
         bandRequests: Boolean = true,
+        fiveGhzSupported: Boolean? = null,
         request: (P2pCreationRequest) -> Unit,
     ): P2pCreationRequest {
-        val modes = plan(stationFrequency, preferred, preferredChannel, bandRequests)
+        val modes = plan(stationFrequency, preferred, preferredChannel, bandRequests, fiveGhzSupported)
         var lastRejection: P2pCreateRejected? = null
         for ((index, mode) in modes.withIndex()) {
             var retriedBusy = false

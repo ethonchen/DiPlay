@@ -6,6 +6,34 @@ import org.junit.Test
 import java.io.IOException
 
 class P2pStartupRecoveryTest {
+    @Test fun reportedTwoGhzOnlySkipsFiveGhzIncludingRememberedChannels() {
+        for (remembered in listOf(null, P2pCreationRequest(P2pCreationMode.FIXED_5_GHZ, 5745))) {
+            assertEquals(listOf(2437, 2412, 2462, null),
+                P2pStartupRecovery.plan(null, remembered, bandRequests = false,
+                    fiveGhzSupported = false).map { it.frequencyMHz })
+        }
+        assertEquals(listOf(2437, 2412, 2462, null),
+            P2pStartupRecovery.plan(5180, fiveGhzSupported = false).map { it.frequencyMHz })
+        assertEquals(P2pStartupRecovery.plan(null), P2pStartupRecovery.plan(null, fiveGhzSupported = null))
+    }
+
+    @Test fun reportedTwoGhzOnlyCreatesWithoutAnyFiveGhzRejectionOrRetry() {
+        val attempts = mutableListOf<Int?>()
+        val result = P2pStartupRecovery.create(null, { fail("Unnecessary retry") },
+            bandRequests = false, fiveGhzSupported = false) { attempts += it.frequencyMHz }
+        assertEquals(listOf(2437), attempts)
+        assertEquals(2437, result.frequencyMHz)
+    }
+
+    @Test fun unsupportedManualFiveGhzChannelFailsBeforeCallingTheDriver() {
+        assertThrows(P2pChannelUnavailableException::class.java) {
+            P2pStartupRecovery.create(null, { fail("Unnecessary retry") },
+                preferredChannel = 36, fiveGhzSupported = false) { fail("Unsupported driver request") }
+        }
+        assertEquals(listOf(2412), P2pStartupRecovery.plan(null, preferredChannel = 1,
+            fiveGhzSupported = false).map { it.frequencyMHz })
+    }
+
     @Test fun manualChannelOverridesStationAndRememberedConfiguration() {
         val remembered = P2pCreationRequest(P2pCreationMode.SYSTEM_DEFAULT)
         for ((channel, frequency) in listOf(1 to 2412, 6 to 2437, 11 to 2462,
