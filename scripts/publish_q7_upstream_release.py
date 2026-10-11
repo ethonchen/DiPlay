@@ -37,6 +37,17 @@ def api(path, optional=False, data=None, method=None):
         raise
 
 
+def find_release():
+    release = api("releases/tags/" + SPEC["tag"], optional=True)
+    if release is None:
+        # GitHub exposes an unpublished draft through the release list, not its tag URL.
+        matches = [item for item in api("releases?per_page=100")
+                   if item["tag_name"] == SPEC["tag"]]
+        require(len(matches) <= 1, "Multiple releases use the requested tag")
+        release = matches[0] if matches else None
+    return release
+
+
 def verify_release(release, checksums, allow_draft=False, allow_partial=False):
     require((allow_draft or not release["draft"]) and release["prerelease"],
             "Unexpected release visibility")
@@ -97,7 +108,7 @@ def main():
     (folder / "SHA256SUMS.txt").write_text(checksums, encoding="utf-8")
     (folder / "notes.md").write_text(SPEC["notes"], encoding="utf-8")
 
-    release = api("releases/tags/" + SPEC["tag"], optional=True)
+    release = find_release()
     if release and not release["draft"]:
         verify_release(release, checksums)
         print("Already published and verified: " + release["html_url"])
@@ -115,10 +126,10 @@ def main():
                         "--repo", REPO, "--target", SPEC["target"], "--title", SPEC["title"],
                         "--notes-file", str(folder / "notes.md"),
                         "--draft", "--prerelease", "--latest=false"], check=True)
-    release = api("releases/tags/" + SPEC["tag"])
+    release = find_release()
     verify_release(release, checksums, allow_draft=True)
     api("releases/" + str(release["id"]), data={"draft": False}, method="PATCH")
-    release = api("releases/tags/" + SPEC["tag"])
+    release = find_release()
     verify_release(release, checksums)
     print("Published and verified: " + release["html_url"])
 
