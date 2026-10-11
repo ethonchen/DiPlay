@@ -17,8 +17,8 @@ android {
         applicationId = "com.shihab.diplay"
         minSdk = 23
         targetSdk = 37
-        versionCode = 40
-        versionName = "0.2.16-android6-q7-navduck1"
+        versionCode = 41
+        versionName = "0.2.18-android6-q7-upstream1"
 
     }
 
@@ -146,3 +146,4 @@ tasks.register("assembleStandaloneQ7") {
     description = "Build the optimized, update-compatible Q7 car-test APK."
     dependsOn(verifyStandaloneAuthentication, "assembleQ7")
 }
+
