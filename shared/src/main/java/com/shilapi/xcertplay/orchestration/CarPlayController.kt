@@ -1368,6 +1368,7 @@ class CarPlayController(
                 useInterfaceMdns = true,
                 onEvent = { event -> debugLog("wireless bonjour: ${event.diagnosticSummary()}") },
                 additionalAddresses = hotspotInfo.hostAddresses.filter { it != hostAddress },
+                onDiagnostic = { message -> debugLog(message) },
             )
             synchronized(wirelessResourceLock) {
                 if (isStaleWirelessRun(generation)) return
@@ -1377,7 +1378,7 @@ class CarPlayController(
             }
             startedBonjour = bonjourClient
             diagnostics.start()
-            debugLog("wireless Bonjour services started mode=interface iface=${hotspotInfo.interfaceName ?: "unknown"}")
+            debugLog("wireless Bonjour services started iface=${hotspotInfo.interfaceName ?: "unknown"} ${bonjourClient.diagnosticSnapshot()}")
             if (isStaleWirelessRun(generation)) {
                 return
             }

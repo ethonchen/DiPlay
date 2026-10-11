@@ -29,6 +29,8 @@ interface MediaSink {
     fun onAudioStarted(id: AudioStreamId, format: AudioFormat, firstSample: Int) {}
     fun onAudioRtp(id: AudioStreamId, format: AudioFormat, rtp: ByteArray, sample: Int) {}
     fun onAudioStopped(id: AudioStreamId) {}
+    fun onAudioDucking(owner: Any, command: CarPlayAudioDuckingCommand) {}
+    fun onAudioDuckingEnded(owner: Any) {}
     fun onMicrophoneStarted(id: AudioStreamId, config: MicrophoneConfig) {}
     fun onMicrophoneStopped(id: AudioStreamId) {}
     fun onIapMessage(bytes: ByteArray) {}
@@ -494,7 +496,12 @@ class CarPlayMediaEngine(
         if (isScreenStreamType(type)) sink.onScreenStreamActive(type, false)
     }
 
+    override fun onAudioDucking(session: AirPlaySession, command: CarPlayAudioDuckingCommand) {
+        if (!session.isClosed) sink.onAudioDucking(session, command)
+    }
+
     override fun onSessionClosed(session: AirPlaySession) {
+        sink.onAudioDuckingEnded(session)
         clearPendingIapTunnel(session)
         retireBuffered(session)
         videoSettingsChannels.remove(session)?.close()

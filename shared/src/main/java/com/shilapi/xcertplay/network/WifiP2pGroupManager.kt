@@ -130,10 +130,13 @@ class WifiP2pGroupManager(
         try {
             val station = readStation()
             val stationFrequency = station.alignmentFrequency
+            val fiveGhzSupported = readFiveGhzSupport()
             checkPrerequisites(station)
+            if (fiveGhzSupported == false) diagnostic("Wi-Fi P2P band limit=2.4GHz reason=5GHz_not_supported")
             val remembered = configurationMemory.read()
             val preferred = remembered?.takeIf {
-                preferredChannel == WifiP2pChannels.AUTO && it.stationMHz == stationFrequency
+                preferredChannel == WifiP2pChannels.AUTO && it.stationMHz == stationFrequency &&
+                    (fiveGhzSupported != false || (it.request.frequencyMHz ?: 0) < 5000)
             }
             diagnostic("Wi-Fi P2P channel preference=${WifiP2pChannels.describe(preferredChannel)} " +
                 "frequencyMHz=${WifiP2pChannels.frequencyMhz(preferredChannel) ?: "auto"}")
@@ -141,7 +144,8 @@ class WifiP2pGroupManager(
                 WifiP2pChannels.band(preferredChannel) != null -> "Wi-Fi P2P remembered skipped=band_preference"
                 preferredChannel != WifiP2pChannels.AUTO -> "Wi-Fi P2P remembered skipped=manual_channel"
                 preferred != null -> {
-                    val position = if (P2pStartupRecovery.plan(stationFrequency, preferred.request).first() == preferred.request)
+                    val position = if (P2pStartupRecovery.plan(stationFrequency, preferred.request,
+                            fiveGhzSupported = fiveGhzSupported).first() == preferred.request)
                         "first" else "deferred"
                     "Wi-Fi P2P remembered $position mode=${preferred.request.mode} frequencyMHz=${preferred.request.frequencyMHz ?: "auto"}"
                 }
@@ -184,6 +188,7 @@ class WifiP2pGroupManager(
                 preferredChannel = preferredChannel,
                 // Band-only requests need the API 29 WifiP2pConfig; the legacy path pins channels.
                 bandRequests = !legacyChannels,
+                fiveGhzSupported = fiveGhzSupported,
                 beforeRetry = {
                     ensureStartActive(attempt)
                     // Do not cancel discovery, toggle Wi-Fi, or remove a newly observed group.
@@ -731,9 +736,13 @@ class WifiP2pGroupManager(
         Station(info?.supplicantState, info?.frequency?.takeIf { it > 0 })
     }.getOrDefault(Station(null, null))
 
+    private fun readFiveGhzSupport(): Boolean? = runCatching {
+        appContext.getSystemService(WifiManager::class.java)?.is5GHzBandSupported
+    }.getOrNull()
+
     private fun checkPrerequisites(station: Station) {
         val wifi = appContext.getSystemService(WifiManager::class.java)
-        val fiveGhzSupported = runCatching { wifi?.is5GHzBandSupported }.getOrNull()
+        val fiveGhzSupported = readFiveGhzSupport()
         val wifiEnabled = runCatching { wifi?.isWifiEnabled }.getOrNull()
         val locationEnabled = runCatching {
             appContext.getSystemService(LocationManager::class.java)?.isLocationEnabledCompat()

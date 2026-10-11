@@ -44,8 +44,26 @@ class WifiP2pLegacyGroupManagerTest {
         shadowOf(context).grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
         val wifi = context.getSystemService(WifiManager::class.java)
         wifi.isWifiEnabled = true
+        shadowOf(wifi).setIs5GHzBandSupported(true)
         shadowOf(wifi.connectionInfo).setFrequency(5180)
         shadowOf(wifi.connectionInfo).setSupplicantState(SupplicantState.COMPLETED)
+    }
+
+    @Test @Config(sdk = [23]) fun android6TwoGhzOnlyStartsOnChannelSixWithoutFiveGhzRequests() {
+        val wifi = context.getSystemService(WifiManager::class.java)
+        shadowOf(wifi).setIs5GHzBandSupported(false)
+        shadowOf(wifi.connectionInfo).setFrequency(0)
+        shadowOf(wifi.connectionInfo).setSupplicantState(SupplicantState.SCANNING)
+        val logs = mutableListOf<String>()
+        WifiP2pGroupManager(context, logs::add).use { manager ->
+            val info = background { manager.start(5000) }
+            assertEquals(listOf(6), radio.channelRequests)
+            assertEquals(1, radio.systemCreations)
+            assertEquals(2437, info.frequencyMHz)
+            assertEquals("2.4 GHz", info.bandLabel)
+            assertTrue(logs.any { it.contains("band limit=2.4GHz reason=5GHz_not_supported") })
+            assertTrue(logs.none { it.contains("mode=FIXED_5_GHZ") })
+        }
     }
 
     @Test fun selectedChannelIsRequestedThroughTheHiddenApiAndReportedUnverified() {
