@@ -55,6 +55,7 @@ interface AirPlayMediaHandler {
     fun onFeedback(session: AirPlaySession): Map<String, Any?>? = null
     fun onTeardown(session: AirPlaySession, type: Int) {}
     fun onSessionClosed(session: AirPlaySession) {}
+    fun onAudioDucking(session: AirPlaySession, command: CarPlayAudioDuckingCommand) {}
     fun setIapTunnelHandler(handler: ((BlockingDuplexByteStream) -> Boolean)?) {}
     fun onSetupResponseSent(session: AirPlaySession) {}
 }
@@ -749,6 +750,7 @@ class AirPlaySession(
         } else if (type == "requestUI") {
             listener.onHostUiRequested(this)
         }
+        CarPlayAudioDuckingCommand.parse(type, params)?.let { media.onAudioDucking(this, it) }
         listener.onCommand(this, type, params)
         return RtspMessage.Response(status = 200)
     }

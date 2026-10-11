@@ -11,11 +11,13 @@ import android.media.MediaFormat
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.Surface
 import com.shilapi.xcertplay.airplay.AudioCodecKind
 import com.shilapi.xcertplay.airplay.AudioFormat
 import com.shilapi.xcertplay.airplay.AudioStreamId
+import com.shilapi.xcertplay.airplay.CarPlayAudioDuckingCommand
 import com.shilapi.xcertplay.airplay.MediaSink
 import com.shilapi.xcertplay.airplay.MicrophoneConfig
 import com.shilapi.xcertplay.airplay.VideoCodec
@@ -50,6 +52,17 @@ internal class AudioFocusCoordinator(
     private var request: AudioFocusRequestCompat? = null
     private var requestedChannel: AudioChannel? = null
     private var mediaVolume = FULL_VOLUME
+    private var navigationVolume = FULL_VOLUME
+    private val navigationDucking = NavigationDuckingState()
+    private val duckHandler by lazy { Handler(Looper.getMainLooper()) }
+    private var duckScheduledAt: Long? = null
+    private var reportedDuckTarget = FULL_VOLUME
+    private val duckTick = Runnable {
+        synchronized(this) {
+            duckScheduledAt = null
+            if (!closed) refreshNavigationDucking()
+        }
+    }
     private var closed = false
     private var focusGeneration = 0L
     private var currentListener = listenerFor(focusGeneration)
@@ -88,7 +101,7 @@ internal class AudioFocusCoordinator(
 
     @Synchronized
     fun acquire(track: AudioTrack, channel: AudioChannel, attributes: AudioAttributes) {
-        if (closed || !enabled || manager == null || channel == AudioChannel.NAVIGATION) return
+        if (closed || channel == AudioChannel.NAVIGATION) return
         active[track] = Entry(channel, attributes)
         refreshRequest()
         applyMediaVolume(track, active.getValue(track))
@@ -97,6 +110,57 @@ internal class AudioFocusCoordinator(
     @Synchronized
     fun release(track: AudioTrack) {
         if (active.remove(track) != null) refreshRequest()
+    }
+
+    @Synchronized
+    fun openNavigation() = navigationDucking.open()
+
+    @Synchronized
+    fun navigationPcm(token: NavigationDuckingState.Token, queuedMillis: Long) {
+        if (closed) return
+        navigationDucking.played(token, SystemClock.uptimeMillis(), queuedMillis)
+        refreshNavigationDucking()
+    }
+
+    @Synchronized
+    fun stopNavigation(token: NavigationDuckingState.Token) {
+        navigationDucking.stop(token, SystemClock.uptimeMillis())
+        if (!closed) refreshNavigationDucking()
+    }
+
+    @Synchronized
+    fun onAudioDucking(owner: Any, command: CarPlayAudioDuckingCommand) {
+        if (closed) return
+        navigationDucking.command(owner, command, SystemClock.uptimeMillis())
+        refreshNavigationDucking()
+    }
+
+    @Synchronized
+    fun endAudioDucking(owner: Any) {
+        navigationDucking.releaseOwner(owner, SystemClock.uptimeMillis())
+        if (!closed) refreshNavigationDucking()
+    }
+
+    private fun refreshNavigationDucking() {
+        val now = SystemClock.uptimeMillis()
+        navigationVolume = navigationDucking.gain(now)
+        active.forEach { (track, entry) -> applyMediaVolume(track, entry) }
+        val target = navigationDucking.targetGain()
+        if (target != reportedDuckTarget) {
+            reportedDuckTarget = target
+            runCatching { report("Audio: navigation duck target=$target mediaTracks=" +
+                active.values.count { it.channel == AudioChannel.MEDIA }) }
+        }
+        val delay = navigationDucking.nextDelay(now)
+        val next = delay?.let { now + it }
+        if (next == null) {
+            if (duckScheduledAt != null) duckHandler.removeCallbacks(duckTick)
+            duckScheduledAt = null
+        } else if (duckScheduledAt == null || next < duckScheduledAt!!) {
+            duckHandler.removeCallbacks(duckTick)
+            duckScheduledAt = next
+            duckHandler.postDelayed(duckTick, next - now)
+        }
     }
 
     fun onExternalFocusChange(change: Int) {
@@ -108,6 +172,9 @@ internal class AudioFocusCoordinator(
     fun close() {
         if (closed) return
         closed = true
+        if (duckScheduledAt != null) duckHandler.removeCallbacks(duckTick)
+        duckScheduledAt = null
+        navigationDucking.clear()
         active.clear()
         refreshRequest()
     }
@@ -123,6 +190,7 @@ internal class AudioFocusCoordinator(
             manager?.let { abandoned?.abandon(it) }
             return
         }
+        if (!enabled || manager == null) return
         if (request != null && requestedChannel == primary.channel) return
         focusGeneration += 1
         manager?.let { request?.abandon(it) }
@@ -151,9 +219,10 @@ internal class AudioFocusCoordinator(
     private fun applyMediaVolume(track: AudioTrack, entry: Entry) {
         // Telephony and assistant speech remain audible, and navigation never enters this map.
         // This changes only the renderer's relative gain, never Android's user stream volume.
-        if (entry.channel != AudioChannel.MEDIA || entry.appliedVolume == mediaVolume) return
-        val applied = runCatching { track.setStereoVolume(mediaVolume, mediaVolume) == AudioTrack.SUCCESS }.getOrDefault(false)
-        if (applied) entry.appliedVolume = mediaVolume
+        val volume = minOf(mediaVolume, navigationVolume)
+        if (entry.channel != AudioChannel.MEDIA || entry.appliedVolume == volume) return
+        val applied = runCatching { track.setStereoVolume(volume, volume) == AudioTrack.SUCCESS }.getOrDefault(false)
+        if (applied) entry.appliedVolume = volume
     }
 
     private fun AudioChannel.focusPriority(): Int = when (this) {
@@ -511,6 +580,14 @@ class AndroidMediaSink(
             callEchoReferences.remove(id)
         }
         updateMediaAudio(id, false)
+    }
+
+    override fun onAudioDucking(owner: Any, command: CarPlayAudioDuckingCommand) {
+        audioFocusCoordinator.onAudioDucking(owner, command)
+    }
+
+    override fun onAudioDuckingEnded(owner: Any) {
+        audioFocusCoordinator.endAudioDucking(owner)
     }
 
     private fun updateMediaAudio(id: AudioStreamId, active: Boolean) {
@@ -1616,6 +1693,7 @@ private class AudioRenderer(
     private var trackAttributes: AudioAttributes? = null
     private var mappedChannel: AudioChannel? = null
     private val navigationPlaybackToken = NavigationPlayback.open()
+    private val navigationDuckingToken = audioFocusCoordinator.openNavigation()
     private var actualLegacyStreamType: Int? = null
     private val queue = LinkedBlockingQueue<AudioPacket>(MAX_QUEUED_PACKETS)
     @Volatile private var running = true
@@ -1707,6 +1785,7 @@ private class AudioRenderer(
         AmbientMusicController.closeRenderer(ambientRendererToken)
         running = false
         NavigationPlayback.close(navigationPlaybackToken)
+        audioFocusCoordinator.stopNavigation(navigationDuckingToken)
         thread.interrupt()
     }
 
@@ -1946,13 +2025,13 @@ private class AudioRenderer(
 
     /**
      * Shares a sink-level focus request across all active non-navigation renderers.
-     * Navigation guidance intentionally takes no focus: it overlays media without ducking it.
+     * Navigation guidance ducks music locally without taking Android focus.
      */
     private fun requestAudioFocus() {
         val channel = mappedChannel ?: return
         val attributes = trackAttributes ?: return
         if (channel == AudioChannel.NAVIGATION) {
-            Log.i(TAG, "audio focus skipped channel=NAVIGATION; overlays without ducking")
+            Log.i(TAG, "audio focus skipped channel=NAVIGATION; navigation ducking=automatic")
             return
         }
         track?.let { audioFocusCoordinator.acquire(it, channel, attributes) }
@@ -2205,6 +2284,12 @@ private class AudioRenderer(
             )
         }
         voiceFilter?.process(data, offset, length)
+        if (running && mappedChannel == AudioChannel.NAVIGATION && audibleNavigationPcm(data, offset, length)) {
+            // Publish before a potentially blocking write; include already queued speech in the lease.
+            val queuedBytes = bufferProgress.queuedBytes(track.playbackHeadPosition) + length
+            val queuedMillis = (queuedBytes / frameBytes * 1000L + format.sampleRate - 1L) / format.sampleRate
+            audioFocusCoordinator.navigationPcm(navigationDuckingToken, queuedMillis)
+        }
         if (!fadeApplied) {
             applyFadeIn(data, offset, length)
             fadeApplied = true
@@ -2391,6 +2476,7 @@ private class AudioRenderer(
     @Synchronized
     private fun release() {
         NavigationPlayback.close(navigationPlaybackToken)
+        audioFocusCoordinator.stopNavigation(navigationDuckingToken)
         AmbientMusicController.closeRenderer(ambientRendererToken)
         abandonAudioFocus()
         val codec = codec

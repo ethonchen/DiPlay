@@ -17,8 +17,8 @@ android {
         applicationId = "com.shihab.diplay"
         minSdk = 23
         targetSdk = 37
-        versionCode = 39
-        versionName = "0.2.16-android6-q7-hotspot1"
+        versionCode = 40
+        versionName = "0.2.16-android6-q7-navduck1"
 
     }
 
