@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_q7_restore_title">恢復 Q7 熱點（實驗性）</string>
+    <string name="settings_q7_restore_permission">請允許 DiPlay 修改系統設定，然後返回並重新連線。DiPlay 會在下次連線前恢復儲存的 WPA2、2.4 GHz 熱點設定。</string>
+</resources>

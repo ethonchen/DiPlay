@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_q7_restore_title">Restaurar punto de acceso Q7 (experimental)</string>
+    <string name="settings_q7_restore_permission">Permite que DiPlay modifique los ajustes del sistema y vuelve para conectar de nuevo. Antes de la siguiente conexión, la aplicación restaura el punto de acceso WPA2 guardado en la banda de 2,4 GHz.</string>
+</resources>

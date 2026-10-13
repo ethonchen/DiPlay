@@ -353,6 +353,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AirPlayPersistence.applyQ7RestorePreset(this)
         // Back on the home page finishes this activity while the session runs on, so the icon lands here.
         if (savedInstanceState == null && isLauncherIntent(intent) && CarPlayBackgroundSession.hasSession()) {
             openProjection(); finish(); return
@@ -2552,7 +2553,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private fun carHotspotOff(): Boolean =
         AirPlayPersistence.loadWirelessHotspotMode(this) == WirelessHotspotMode.MANUAL &&
             com.shilapi.xcertplay.network.CarHotspotStatus.isEnabled(this) == false &&
-            !(CarHotspotSettings.enabled(this) && CarHotspotTethering.permitted(this))
+            !(CarHotspotSettings.enabled(this) && CarHotspotTethering.permitted(this)) &&
+            !com.shilapi.xcertplay.network.Q7HotspotRestore.enabled(AirPlayPersistence.loadManualHotspotSecurity(this))
 
     private fun bydAdbSettings(parent: LinearLayout) {
         if (AirPlayPersistence.loadWirelessHotspotMode(this) != WirelessHotspotMode.MANUAL) return
@@ -4965,6 +4967,16 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     private fun connect(wireless: Boolean) {
         startupHotspotCancelled = true
+        if (wireless && AirPlayPersistence.loadWirelessHotspotMode(this) == WirelessHotspotMode.MANUAL &&
+            com.shilapi.xcertplay.network.Q7HotspotRestore.enabled(AirPlayPersistence.loadManualHotspotSecurity(this)) &&
+            !Settings.System.canWrite(this)) {
+            appDialogBuilder().setTitle(R.string.settings_q7_restore_title)
+                .setMessage(R.string.settings_q7_restore_permission)
+                .setPositiveButton(R.string.app_settings) { _, _ ->
+                    openSystem(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:$packageName")))
+                }.setNegativeButton(R.string.later, null).show()
+            return
+        }
         if (wireless && pendingCarHotspotSetup) { toast(getString(R.string.save_your_hotspot_details_in_connection_setup_first)); page = "connection"; render(); return }
         if (setupError != null) { toast(setupError!!); return }
         if (wireless && AirPlayPersistence.loadWirelessHotspotMode(this) == WirelessHotspotMode.MANUAL &&

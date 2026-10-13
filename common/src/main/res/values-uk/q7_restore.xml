@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_q7_restore_title">Відновлення точки доступу Q7 (експериментально)</string>
+    <string name="settings_q7_restore_permission">Дозвольте DiPlay змінювати системні налаштування, потім поверніться та підключіться знову. Перед наступним підключенням застосунок відновить збережену точку доступу WPA2 у діапазоні 2,4 ГГц.</string>
+</resources>

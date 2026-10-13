@@ -1,7 +1,7 @@
 name: Q7 optimized APK
 on:
   push:
-    branches: [main, perf/q7-slim, "merge/upstream-**", "fix/q7-audio-**"]
+    branches: [main, perf/q7-slim, "merge/upstream-**", "fix/q7-audio-**", "experiment/q7-hotspot-restore-**"]
   workflow_dispatch:
 permissions:
   contents: read
