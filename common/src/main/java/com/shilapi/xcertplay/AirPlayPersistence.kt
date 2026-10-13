@@ -386,6 +386,28 @@ object AirPlayPersistence {
             .getString(KEY_MANUAL_HOTSPOT_SSID, null)
             .orEmpty()
 
+    /** One-time owner-selected profile for this Q7 build. Later edits remain authoritative. */
+    @Synchronized
+    internal fun applyQ7RestorePreset(context: Context,
+        supported: Boolean = com.shilapi.xcertplay.network.Q7HotspotRestore.supported()) {
+        if (!supported) return
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (prefs.getBoolean("q7_restore1_profile_applied", false)) return
+        check(prefs.edit()
+            .putString(KEY_MANUAL_HOTSPOT_SSID, "sica_camap_4e27")
+            .putString(KEY_MANUAL_HOTSPOT_PASSPHRASE, "11111111")
+            .putString(KEY_MANUAL_HOTSPOT_SECURITY, ManualHotspotSecurity.WPA2.name)
+            .putString(KEY_MANUAL_HOTSPOT_BAND, ManualHotspotBand.GHZ_2_4.name)
+            .putInt(KEY_MANUAL_HOTSPOT_CHANNEL, 11)
+            .putString(KEY_WIRELESS_HOTSPOT_MODE, WirelessHotspotMode.MANUAL.name)
+            .putBoolean(KEY_WIRELESS_ENABLED, true)
+            .putBoolean(KEY_AUTO_START_ON_BOOT, true)
+            .putBoolean("q7_restore1_profile_applied", true)
+            .commit()) { "Q7 hotspot profile could not be saved" }
+        DiPlayPreferences.saveAutoConnect(context, true)
+        DiPlayPreferences.saveDefaultConnectionMode(context, DefaultConnectionMode.WIRELESS)
+    }
+
     fun saveManualHotspotSsid(context: Context, ssid: String) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString(KEY_MANUAL_HOTSPOT_SSID, ssid)

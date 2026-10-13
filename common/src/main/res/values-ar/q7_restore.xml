@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_q7_restore_title">استعادة نقطة اتصال Q7 (تجريبي)</string>
+    <string name="settings_q7_restore_permission">اسمح لـ DiPlay بتعديل إعدادات النظام، ثم ارجع واتصل مرة أخرى. قبل الاتصال التالي، يستعيد التطبيق إعدادات نقطة الاتصال المحفوظة باستخدام WPA2 على نطاق 2.4 غيغاهرتز.</string>
+</resources>

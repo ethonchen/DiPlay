@@ -163,6 +163,11 @@ class ManualHotspotManager(
     }
 
     override fun validateReady() {
+        if (Q7HotspotRestore.enabled(security = if (expectedSecurity == Iap2WirelessSecurity.WPA_WPA2)
+                ManualHotspotSecurity.WPA2 else ManualHotspotSecurity.OPEN)) {
+            Q7HotspotRestore.verify(appContext, expectedSsid, passphrase,
+                expectedChannel.takeIf { it in 1..11 } ?: 11)
+        }
         val expected = confirmed ?: throw WirelessStartupException(
             WirelessStartupFailure.HOTSPOT_NOT_READY, "Hotspot network is not ready",
         )

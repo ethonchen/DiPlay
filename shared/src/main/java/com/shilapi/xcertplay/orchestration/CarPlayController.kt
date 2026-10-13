@@ -2199,6 +2199,16 @@ class CarPlayController(
     private fun startWirelessHotspot(generation: Int): WirelessHotspotInfo {
         val readyDeadline = System.nanoTime() + WirelessStartupPolicy.HOTSPOT_READY_MILLIS * 1_000_000
         val hotspotMode = config.wirelessHotspotMode
+        if (hotspotMode == WirelessHotspotMode.MANUAL &&
+            com.shilapi.xcertplay.network.Q7HotspotRestore.enabled(config.manualHotspotSecurity)) {
+            com.shilapi.xcertplay.network.Q7HotspotRestore.prepare(
+                appContext, config.manualHotspotSsid.orEmpty(), config.manualHotspotPassphrase.orEmpty(),
+                config.manualHotspotChannel.takeIf { it in 1..11 } ?: 11,
+                ((readyDeadline - System.nanoTime()) / 1_000_000L).coerceAtLeast(1),
+                cancelled = { isStaleWirelessRun(generation) },
+                log = { debugLog("generation=$generation $it") },
+            )
+        }
         if (com.shilapi.xcertplay.network.CarHotspotSettings.shouldEnable(
                 appContext, config.transport == CarPlayTransport.WIRELESS, hotspotMode,
             )

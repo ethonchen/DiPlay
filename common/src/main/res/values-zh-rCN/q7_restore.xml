@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_q7_restore_title">恢复 Q7 热点（实验性）</string>
+    <string name="settings_q7_restore_permission">请允许 DiPlay 修改系统设置，然后返回并重新连接。DiPlay 会在下次连接前恢复保存的 WPA2、2.4 GHz 热点配置。</string>
+</resources>
