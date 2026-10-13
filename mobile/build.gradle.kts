@@ -18,7 +18,9 @@ android {
         minSdk = 23
         targetSdk = 37
         versionCode = 41
-        versionName = "0.2.18-android6-q7-upstream1"
+        // Keep code 41 for this isolated experiment so the code-41 baseline can be
+        // reinstalled over it without uninstalling or clearing the driver's settings.
+        versionName = "0.2.18-android6-q7-upstream1-openwifi1"
 
     }
 

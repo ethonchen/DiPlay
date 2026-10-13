@@ -60,6 +60,9 @@ class Iap2WirelessControlClient(
         }
         stage = Iap2WirelessControlStage.SUBSCRIBED
         onProgress("iap2 subscriptions sent")
+        if (endpoint.security == Iap2WirelessSecurity.NONE) {
+            onProgress("iap2 openwifi1 experiment security=NONE passphraseField=omitted messages=0x5703+0x4301")
+        }
         onReady()
 
         fun sendControl(frame: Iap2Frame) {

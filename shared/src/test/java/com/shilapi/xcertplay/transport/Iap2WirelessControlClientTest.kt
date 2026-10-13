@@ -161,16 +161,47 @@ class Iap2WirelessControlClientTest {
         assertEquals(listOf(1, 2, 3, 4), parameters(Iap2WirelessControlClient.accessoryWiFiConfiguration(endpoint()).payload).map { it.id })
     }
 
-    @Test fun openNetworkEncodesAnEmptyCredentialInBothBootstrapMessages() {
-        val open = Iap2WirelessCarPlayEndpoint("Guest", "", 36, Iap2WirelessSecurity.NONE,
-            listOf("fe80::1234"), 7000, "dev-1", "aabbcc", "1.0")
+    @Test fun openNetworkOmitsCredentialAndPreservesEndpointInBothBootstrapMessages() {
+        val open = Iap2WirelessCarPlayEndpoint("Guest", "", 11, Iap2WirelessSecurity.NONE,
+            listOf("192.168.43.1", "fe80::1234"), 7000, "dev-1", "aabbcc", "1.0",
+            byteArrayOf(0x02, 0x11, 0x22, 0x33, 0x44, 0x55))
         val configuration = parameters(Iap2WirelessControlClient.accessoryWiFiConfiguration(open).payload)
-        assertArrayEquals(byteArrayOf(0), configuration.single { it.id == 2 }.payload)
+        assertEquals(listOf(0, 1, 3, 4), configuration.map { it.id })
+        assertNull(configuration.firstOrNull { it.id == 2 })
+        assertEquals("Guest\u0000", configuration.single { it.id == 1 }.payload.decodeToString())
         assertArrayEquals(byteArrayOf(0), configuration.single { it.id == 3 }.payload)
+        assertArrayEquals(byteArrayOf(11), configuration.single { it.id == 4 }.payload)
+        assertEquals(
+            "404000245703000a0000021122334455000a00014775657374000005000300000500040b",
+            Iap2WirelessControlClient.accessoryWiFiConfiguration(open).encodedFrame().hex(),
+        )
         val start = parameters(Iap2WirelessControlClient.carPlayStartSession(open).payload)
         val wireless = parameters(start.single { it.id == 1 }.payload)
-        assertArrayEquals(byteArrayOf(0), wireless.single { it.id == 1 }.payload)
+        assertEquals(listOf(0, 2, 3, 3, 4), wireless.map { it.id })
+        assertNull(wireless.firstOrNull { it.id == 1 })
+        assertEquals("Guest\u0000", wireless.single { it.id == 0 }.payload.decodeToString())
+        assertArrayEquals(byteArrayOf(11), wireless.single { it.id == 2 }.payload)
+        assertEquals(listOf("192.168.43.1\u0000", "fe80::1234\u0000"),
+            wireless.filter { it.id == 3 }.map { it.payload.decodeToString() })
         assertArrayEquals(byteArrayOf(0), wireless.single { it.id == 4 }.payload)
+        assertArrayEquals(byteArrayOf(0, 0, 0x1b, 0x58), start.single { it.id == 2 }.payload)
+        assertEquals("dev-1\u0000", start.single { it.id == 3 }.payload.decodeToString())
+        assertEquals("aabbcc\u0000", start.single { it.id == 4 }.payload.decodeToString())
+    }
+
+    @Test fun wpa2NetworkKeepsCredentialInBothBootstrapMessages() {
+        val secured = Iap2WirelessCarPlayEndpoint("Guest", "secret123", 11,
+            Iap2WirelessSecurity.WPA_WPA2, listOf("192.168.43.1"), 7000,
+            "dev-1", "aabbcc", "1.0")
+        val configuration = parameters(Iap2WirelessControlClient.accessoryWiFiConfiguration(secured).payload)
+        assertEquals(listOf(1, 2, 3, 4), configuration.map { it.id })
+        assertEquals("secret123\u0000", configuration.single { it.id == 2 }.payload.decodeToString())
+        assertArrayEquals(byteArrayOf(2), configuration.single { it.id == 3 }.payload)
+        val start = parameters(Iap2WirelessControlClient.carPlayStartSession(secured).payload)
+        val wireless = parameters(start.single { it.id == 1 }.payload)
+        assertEquals(listOf(0, 1, 2, 3, 4), wireless.map { it.id })
+        assertEquals("secret123\u0000", wireless.single { it.id == 1 }.payload.decodeToString())
+        assertArrayEquals(byteArrayOf(2), wireless.single { it.id == 4 }.payload)
     }
 
     @Test fun securedSessionStillRejectsAnEmptyCredential() {

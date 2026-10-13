@@ -78,7 +78,9 @@ object Iap2CarPlayMessages {
             wireless?.let {
                 group(1) {
                     string(0, it.ssid)
-                    string(1, it.passphrase)
+                    // Q7 openwifi1 experiment: omit the credential TLV for NONE instead of
+                    // sending an empty NUL-terminated string. Secured networks keep their bytes.
+                    if (it.securityType != 0) string(1, it.passphrase)
                     u8(2, it.channel)
                     it.ipAddresses.forEach { address -> string(3, address) }
                     u8(4, it.securityType)
@@ -161,7 +163,8 @@ object Iap2WirelessMessages {
     ): Iap2Frame = Iap2Messages.build(Iap2Endpoints.ACCESSORY_WIFI_CONFIGURATION) {
         optionalBytes(0, bssid)
         string(1, ssid)
-        string(2, passphrase)
+        // Match the open-network representation in CarPlayStartSession (0x4301).
+        if (securityType != 0) string(2, passphrase)
         u8(3, securityType)
         u8(4, channel)
     }
