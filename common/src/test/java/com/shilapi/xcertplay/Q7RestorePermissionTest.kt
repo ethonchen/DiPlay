@@ -2,6 +2,7 @@ package com.shilapi.xcertplay
 
 import android.app.AlertDialog
 import android.os.Build
+import android.os.Looper
 import android.provider.Settings
 import com.shilapi.xcertplay.host.R
 import org.junit.Assert.*
@@ -49,7 +50,9 @@ class Q7RestorePermissionTest {
         assertNotNull(dialog)
         assertEquals(activity.getString(R.string.settings_q7_restore_title), shadowOf(dialog).title.toString())
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
         val intent = shadowOf(activity).nextStartedActivity
+        assertNotNull(intent)
         assertEquals(Settings.ACTION_MANAGE_WRITE_SETTINGS, intent.action)
         assertEquals("package:${activity.packageName}", intent.dataString)
         assertFalse(Settings.System.canWrite(activity))

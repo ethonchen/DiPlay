@@ -81,7 +81,9 @@ internal class LegacyQ7ApPort(private val wifi: Any, private val ssid: String,
     override fun state(): Int? = (invoke("getWifiApState") as? Number)?.toInt()
     override fun canControl(): Boolean = allowed()
     private fun field(name: String) = WifiConfiguration::class.java.getField(name)
-    override fun target(original: WifiConfiguration): WifiConfiguration = WifiConfiguration(original).apply {
+    // This constructor exists as a hidden API on Android 6, but entered the public SDK at API 30.
+    override fun target(original: WifiConfiguration): WifiConfiguration = WifiConfiguration::class.java
+        .getConstructor(WifiConfiguration::class.java).newInstance(original).apply {
         SSID = ssid
         preSharedKey = credential
         allowedKeyManagement.clear(); allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA2_PSK)
