@@ -11,11 +11,14 @@ import kotlin.math.min
  *
  * It keeps CSM framing separate from typed control messages.  Sending waits for a completed iAP2
  * negotiation so every complete CSM frame can be split to the peer's advertised session-10 limit.
- * One receiver owns the stateful framer; concurrent senders are serialized so their split frames
- * cannot interleave.  Closing this channel closes its link and the link's owned byte stream.
+ * One receiver owns the stateful framer; the Wi-Fi tunnel drains it on a dedicated worker so runtime
+ * callbacks and sends cannot stop the link drain. Concurrent senders serialize their split frames.
+ * Closing this channel closes its link, owned byte stream, and receive worker.
  */
 class Iap2CsmChannel private constructor(
     private val link: Iap2LinkChannel,
+    eagerReceive: Boolean = false,
+    onDiagnostic: (String) -> Unit = {},
 ) : AutoCloseable {
     private val stateLock = Object()
     private val sendLock = Object()
@@ -25,6 +28,12 @@ class Iap2CsmChannel private constructor(
     private var receivedBytes = 0
     private var closed = false
     private var terminalFailure: Throwable? = null
+    // Wi-Fi runtime callbacks/sends may pause the consumer. Keep draining and framing the link
+    // independently, preserving every frame and its order within a fixed memory budget.
+    private val eagerFrames = if (eagerReceive) Iap2ControlFrameQueue(onDiagnostic) else null
+    private val receiveWorker = if (eagerReceive) Thread(::runReceivePump, "diplay-iap2-csm-receive").apply {
+        isDaemon = true
+    } else null
 
     /** True once this channel is closed or has recorded a terminal transport failure. */
     val isClosed: Boolean
@@ -92,6 +101,7 @@ class Iap2CsmChannel private constructor(
      */
     fun recv(timeoutMillis: Long): Iap2Frame? {
         requireTimeout(timeoutMillis)
+        eagerFrames?.let { return it.poll(timeoutMillis) }
         synchronized(receiveLock) {
             takeReceived()?.let { return it }
             val deadlineNanos = deadlineAfter(timeoutMillis)
@@ -130,14 +140,50 @@ class Iap2CsmChannel private constructor(
             }
         }
         if (!close) return
+        eagerFrames?.close()
+        var closeFailure: Throwable? = null
         try {
             link.close()
         } catch (failure: Throwable) {
-            if (failure is Error) {
-                terminalize(failure)
-                throw failure
+            closeFailure = terminalize(failure)
+        }
+        receiveWorker?.takeIf { it !== Thread.currentThread() }?.let { worker ->
+            try {
+                worker.join(1_000)
+                if (worker.isAlive) {
+                    val failure = IOException("CSM receive worker did not stop after close")
+                    closeFailure?.addSuppressed(failure) ?: run { closeFailure = failure }
+                }
+            } catch (interrupted: InterruptedException) {
+                Thread.currentThread().interrupt()
+                closeFailure?.addSuppressed(interrupted) ?: run { closeFailure = interrupted }
             }
-            throw terminalize(failure)
+        }
+        closeFailure?.let { throw it }
+    }
+
+    private fun runReceivePump() {
+        try {
+            while (!isClosed) {
+                val control = link.recvControl(100) ?: continue
+                val frames = try {
+                    framer.offer(control)
+                } catch (failure: Exception) {
+                    throw IOException("Invalid CSM control payload", failure)
+                }
+                frames.forEach { eagerFrames!!.offer(it) }
+            }
+        } catch (failure: Throwable) {
+            if (!isClosed) {
+                eagerFrames!!.fail(terminalize(failure))
+                try { close() } catch (closeFailure: Throwable) {
+                    if (closeFailure is Error) throw closeFailure
+                    if (closeFailure !== failure) failure.addSuppressed(closeFailure)
+                }
+            }
+            if (failure is Error) throw failure
+        } finally {
+            eagerFrames!!.close()
         }
     }
 
@@ -191,6 +237,7 @@ class Iap2CsmChannel private constructor(
             val prior = terminalFailure
             if (prior == null) {
                 terminalFailure = failure
+                eagerFrames?.fail(failure)
                 return failure
             }
             if (prior !== failure) prior.addSuppressed(failure)
@@ -239,7 +286,9 @@ class Iap2CsmChannel private constructor(
         fun openTunnel(
             underlying: BlockingDuplexByteStream,
             onArtwork: (Iap2ArtworkTransfer) -> Unit = {},
+            onDiagnostic: (String) -> Unit = {},
         ): Iap2CsmChannel =
-            Iap2CsmChannel(Iap2LinkChannel.openTunnel(underlying, onArtwork))
+            Iap2CsmChannel(Iap2LinkChannel.openTunnel(underlying, onArtwork),
+                eagerReceive = true, onDiagnostic = onDiagnostic).also { it.receiveWorker!!.start() }
     }
 }
