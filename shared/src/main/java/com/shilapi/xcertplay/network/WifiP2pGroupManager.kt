@@ -132,7 +132,10 @@ class WifiP2pGroupManager(
             val stationFrequency = station.alignmentFrequency
             val fiveGhzSupported = readFiveGhzSupport()
             checkPrerequisites(station)
-            if (fiveGhzSupported == false) diagnostic("Wi-Fi P2P band limit=2.4GHz reason=5GHz_not_supported")
+            if (fiveGhzSupported == false) {
+                diagnostic("Wi-Fi P2P band limit=2.4GHz reason=5GHz_not_supported")
+                diagnostic("Wi-Fi P2P 5 GHz skipped: the Wi-Fi chip reports no 5 GHz band")
+            }
             val remembered = configurationMemory.read()
             val preferred = remembered?.takeIf {
                 preferredChannel == WifiP2pChannels.AUTO && it.stationMHz == stationFrequency &&

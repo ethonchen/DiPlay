@@ -1,6 +1,8 @@
 package com.shilapi.xcertplay
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.content.res.Configuration
 import android.view.View
 import org.junit.Assert.*
@@ -32,6 +34,13 @@ class Android6StartupTest {
             for (category in SettingsCategory.entries) {
                 ReflectionHelpers.setField(activity, "settingsCategory", category)
                 ReflectionHelpers.callInstanceMethod<Unit>(activity, "render")
+                // Rendering exercises the text alignment helpers too; inflating alone misses API-24 calls.
+                val decor = activity.window.decorView
+                decor.measure(View.MeasureSpec.makeMeasureSpec(1024, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(600, View.MeasureSpec.EXACTLY))
+                decor.layout(0, 0, 1024, 600)
+                val bitmap = Bitmap.createBitmap(1024, 600, Bitmap.Config.ARGB_8888)
+                try { decor.draw(Canvas(bitmap)) } finally { bitmap.recycle() }
             }
             AppLocale.save(app, AppLocale.SYSTEM)
             AppLocale.enforce(activity)
