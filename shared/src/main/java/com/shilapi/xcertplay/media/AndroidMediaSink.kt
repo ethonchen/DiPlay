@@ -5,7 +5,6 @@ import android.media.AudioAttributes
 import android.media.AudioDeviceInfo
 import android.media.AudioFormat as AndroidAudioFormat
 import android.media.AudioManager
-import android.media.AudioRouting
 import android.media.AudioTrack
 import android.media.MediaCodec
 import android.media.MediaCodecList
@@ -1895,7 +1894,8 @@ private class AudioRenderer(
     private var clockTrim: MediaClockTrim? = null
     /** Called when this call's track is routed to the earpiece; the sink moves the call to the loudspeaker. */
     @Volatile var onRoutedToEarpiece: (() -> Unit)? = null
-    private var routingListener: AudioRouting.OnRoutingChangedListener? = null
+    @Suppress("DEPRECATION") // The AudioTrack listener is available on API 23; AudioRouting starts at 24.
+    private var routingListener: AudioTrack.OnRoutingChangedListener? = null
     private var lastPcmWriteNs = 0L
     private var rebufferCount = 0
     private var rebufferPauseReportCount = 0
@@ -2100,7 +2100,8 @@ private class AudioRenderer(
         }
         track = built
         if (mappedChannel == AudioChannel.PHONE) {
-            val listener = AudioRouting.OnRoutingChangedListener { routing -> checkCallRoute(routing.routedDevice) }
+            @Suppress("DEPRECATION")
+            val listener = AudioTrack.OnRoutingChangedListener { routing -> checkCallRoute(routing.routedDevice) }
             if (runCatching { built.addOnRoutingChangedListener(listener, Handler(Looper.getMainLooper())) }.isSuccess) {
                 routingListener = listener
             }

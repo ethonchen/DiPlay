@@ -5973,6 +5973,8 @@ class CarPlayHostActivity : ComponentActivity() {
 
     // Copies the SurfaceView's current picture (at half size) before its surface goes, waiting briefly for it.
     private fun captureLastPicture() {
+        // SurfaceView PixelCopy starts at API 24. Android 6 keeps the existing fresh-frame recovery.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
         val surfaceView = fallbackVideoView ?: return
         val bounds = fallbackVideoBounds ?: return
         if (!surfaceView.holder.surface.isValid) return
