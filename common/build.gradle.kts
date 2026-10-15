@@ -25,8 +25,12 @@ android {
 
     testOptions {
         unitTests.isIncludeAndroidResources = true
-        // The UI suite covers several SDKs and locale-specific resource sandboxes.
-        unitTests.all { it.maxHeapSize = "1g" }
+        // API 23 plus the upstream SDK/locale matrix retains large Robolectric resource sandboxes.
+        // Bound each worker's lifetime so a full run releases those caches instead of exhausting heap.
+        unitTests.all {
+            it.maxHeapSize = "2g"
+            it.forkEvery = 50
+        }
     }
 
     // Additional library audit for this port; the mobile app retains the full upstream lint suite.
