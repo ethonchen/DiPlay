@@ -24,7 +24,7 @@ internal object P2pStartupRecovery {
              preferredChannel: Int = WifiP2pChannels.AUTO,
              bandRequests: Boolean = true,
              fiveGhzSupported: Boolean? = null): List<P2pCreationRequest> {
-        val plan = unfilteredPlan(stationFrequency, preferred, preferredChannel, bandRequests)
+        val plan = unfilteredPlan(stationFrequency, preferred, preferredChannel, bandRequests, fiveGhzSupported != false)
         if (fiveGhzSupported != false) return plan
         val supported = plan.filter { it.mode != P2pCreationMode.BAND_5_GHZ && (it.frequencyMHz ?: 0) < 5000 }
         if (supported.isEmpty()) throw P2pChannelUnavailableException(
@@ -44,7 +44,8 @@ internal object P2pStartupRecovery {
     /** A band-only request still needs channel selection, which some BYD drivers cannot do. */
     private fun unfilteredPlan(stationFrequency: Int?, preferred: P2pCreationRequest? = null,
              preferredChannel: Int = WifiP2pChannels.AUTO,
-             bandRequests: Boolean = true): List<P2pCreationRequest> = buildList {
+             bandRequests: Boolean = true,
+             fiveGhz: Boolean = true): List<P2pCreationRequest> = buildList {
         WifiP2pChannels.frequencyMhz(preferredChannel)?.let {
             add(P2pCreationRequest(P2pCreationMode.PREFERRED_CHANNEL, it))
             return@buildList
@@ -65,6 +66,7 @@ internal object P2pStartupRecovery {
         // for 0.6-2 s and starved music. A 2.4 GHz group runs alongside without switching.
         val stationOnFiveGhz = stationFrequency != null && stationFrequency in 5150..5895
         val remembered = preferred?.frequencyMHz?.let(::rememberedFrequency)
+            ?.takeIf { fiveGhz || it.frequencyMHz!! !in 5150..5895 }
         val rememberedSwitches = stationOnFiveGhz && remembered != null &&
             remembered.frequencyMHz!! in 5150..5895 && remembered.frequencyMHz != stationFrequency
         // The default API does not pin a channel. A cached success cannot prove it will avoid
@@ -75,11 +77,11 @@ internal object P2pStartupRecovery {
         if (aligned24) channel(P2pCreationMode.ALIGNED_2_GHZ, requireNotNull(stationFrequency))
         if (aligned5) channel(P2pCreationMode.ALIGNED_5_GHZ, requireNotNull(stationFrequency))
         fun twoGhz() = listOf(2437, 2412, 2462).forEach { channel(P2pCreationMode.FIXED_2_GHZ, it) }
-        fun fiveGhz() = listOf(5180, 5745).forEach { channel(P2pCreationMode.FIXED_5_GHZ, it) }
+        fun fiveGhzChannels() = listOf(5180, 5745).filter { fiveGhz }.forEach { channel(P2pCreationMode.FIXED_5_GHZ, it) }
         // Keep a shared radio on its existing station channel when possible. Otherwise prefer
         // explicit non-DFS 5 GHz, then channels 6/1/11, except next to a 5 GHz station, where
         // 2.4 GHz comes first (see above). The platform enforces regulatory limits.
-        if (aligned24 || stationOnFiveGhz) { twoGhz(); fiveGhz() } else { fiveGhz(); twoGhz() }
+        if (aligned24 || stationOnFiveGhz) { twoGhz(); fiveGhzChannels() } else { fiveGhzChannels(); twoGhz() }
         if (rememberedSwitches) channel(remembered!!.mode, remembered.frequencyMHz!!)
         // Some vendors only implement the default-configuration API. Use it last, after every
         // explicit-frequency option has been rejected, never before the 2.4 GHz attempts.
