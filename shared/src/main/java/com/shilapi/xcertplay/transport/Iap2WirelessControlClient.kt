@@ -63,7 +63,8 @@ class Iap2WirelessControlClient(
         onReady()
 
         fun sendControl(frame: Iap2Frame) {
-            session.send(frame, deadline.requireRemaining(keepAliveAfterDeadline))
+            // An unlimited drive must not turn one queued update into a five-minute receive stall.
+            session.send(frame, min(5_000L, deadline.requireRemaining(keepAliveAfterDeadline)))
         }
 
         var forwardedFrames = 0

@@ -225,7 +225,8 @@ class Iap2LinkChannel private constructor(
                         }
                     }
                     if (overflow) {
-                        finish(IOException("iAP2 received-control queue limit exceeded"))
+                        val detail = synchronized(lock) { "pending=${controls.size} bytes=$controlBytes incomingBytes=${event.bytes.size}" }
+                        finish(IOException("iAP2 received-control queue limit exceeded $detail"))
                         return false
                     }
                 }
@@ -355,7 +356,7 @@ class Iap2LinkChannel private constructor(
         private const val MAX_WAIT_MILLIS = Long.MAX_VALUE / NANOS_PER_MILLISECOND
         private const val MAX_PENDING_COMMANDS = 64
         private const val MAX_PENDING_COMMAND_BYTES = 1_048_576
-        private const val MAX_PENDING_CONTROLS = 64
+        private const val MAX_PENDING_CONTROLS = 256
         private const val MAX_PENDING_CONTROL_BYTES = 1_048_576
 
         private val WIRED_LINK_CONFIG = Iap2LinkConfig(

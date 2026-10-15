@@ -138,7 +138,7 @@ class Iap2Session private constructor(
             onTrace: (String) -> Unit = {},
             onArtwork: (Iap2ArtworkTransfer) -> Unit = {},
         ): Iap2Session =
-            Iap2Session(Iap2CsmChannel.openTunnel(underlying, onArtwork), traceContext, onTrace)
+            Iap2Session(Iap2CsmChannel.openTunnel(underlying, onArtwork, onTrace), traceContext, onTrace)
 
         fun wrap(
             channel: Iap2CsmChannel,

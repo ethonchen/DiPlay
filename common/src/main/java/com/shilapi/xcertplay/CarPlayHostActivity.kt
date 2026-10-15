@@ -140,6 +140,7 @@ class CarPlayHostActivity : ComponentActivity() {
     private var connectionPanel: View? = null
     private var wifiRecoveryButton: View? = null
     private var reconnectAttempts = 0
+    private val wirelessReconnectBackoff = WirelessReconnectBackoff()
     private val siriKey = WheelSiriKey()
     private val siriKeyPresses = WheelKeyPresses()
     private val legacySiriPresses = mutableSetOf<Triple<Int, Int, Int>>()
@@ -4709,6 +4710,7 @@ class CarPlayHostActivity : ComponentActivity() {
                     callPopupSessionReady = true
                     updateCallPopupGuard()
                     reconnectAttempts = 0
+                    if (wirelessEnabled) wirelessReconnectBackoff.sessionActive()
                     logThemeState(ThemeModeDiagnostics.Source.SESSION_ACTIVE, resources.configuration)
                     syncAirPlayDarkMode(ThemeModeDiagnostics.Source.SESSION_ACTIVE)
                     applyClusterTurnOverlay()
@@ -5340,13 +5342,15 @@ class CarPlayHostActivity : ComponentActivity() {
         callPopupSessionReady = false
         updateCallPopupGuard()
         val generation = restartGeneration
-        val delayMillis = if (startupDelay != null) {
+        if (wirelessEnabled) wirelessReconnectBackoff.afterLoss()
+        val normalDelayMillis = if (startupDelay != null) {
             startupDelay
         } else if (reason.contains("AirPlay iAP tunnel", ignoreCase = true)) {
             IAP_TUNNEL_RECONNECT_DELAY_MILLIS
         } else {
             (RECONNECT_DELAY_MILLIS * (1L shl reconnectAttempts.coerceAtMost(4))).coerceAtMost(30_000L)
         }
+        val delayMillis = if (wirelessEnabled) wirelessReconnectBackoff.cap(normalDelayMillis) else normalDelayMillis
         reconnectAttempts += 1
         appendLog("$reason; retrying in ${delayMillis}ms generation=$generation startupFailure=$startupFailure startupRetries=${startupRetryBudget.retries}")
         mainHandler.postDelayed(
