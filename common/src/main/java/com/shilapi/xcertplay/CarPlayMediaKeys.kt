@@ -78,6 +78,7 @@ internal object CarPlayMediaKeys {
         appContext = context.applicationContext
         controller = next
         GeelyWheelKeys.start(context)
+        FytWheelKeys.start(context, next)
         com.shilapi.xcertplay.media.AmbientMusicController.claimPlaybackOwner(next)
         next.playbackListener = { playing ->
             com.shilapi.xcertplay.media.AmbientMusicController.phonePlaybackChanged(next, playing)
@@ -100,6 +101,7 @@ internal object CarPlayMediaKeys {
         expected.artworkListener = null
         controller = null
         GeelyWheelKeys.stop()
+        FytWheelKeys.stop()
         releaseLocked()
     }
 
@@ -393,6 +395,10 @@ internal object CarPlayMediaKeys {
     }
 
     private fun send(index: Int, source: String) {
+        if (!FytWheelKeys.shouldForward(index, source)) {
+            WheelKeyLog.note("media key $source duplicate suppressed index=$index")
+            return
+        }
         // While the car's video player is on screen the wheel drives it: a CarPlay play/pause would
         // make the iPhone end the video session.
         if (CarPlayVideo.onMediaKey(index)) {
@@ -405,8 +411,13 @@ internal object CarPlayMediaKeys {
         WheelKeyLog.note("media key $source -> CarPlay $index sent=$sent")
     }
 
-    /** A steering-wheel media key captured outside the Android key stream (Geely/Lynk). */
-    internal fun onExternalMediaKey(index: Int) = send(index, "geely-wheel")
+    /** A steering-wheel media key captured outside the Android key stream. */
+    internal fun onExternalMediaKey(index: Int, source: String = "geely-wheel") = send(index, source)
+
+    @Synchronized
+    internal fun onFytMediaKey(expected: CarPlayController, index: Int, source: String) {
+        if (controller === expected) send(index, source)
+    }
 
     /** The steering-wheel microphone key captured outside the Android key stream (Geely/Lynk). */
     internal fun onExternalSiriKey(): Boolean {

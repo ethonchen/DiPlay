@@ -5584,6 +5584,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             "writeSettings=${CarHotspotTethering.permitted(appContext)} " +
             "bydHeadUnit=${runCatching { CarHotspotSetup.isBydHeadUnit(appContext) }.getOrNull()} " +
             "hotspotOn=${runCatching { com.shilapi.xcertplay.network.CarHotspotStatus.isEnabled(appContext) }.getOrNull()}")
+        appendLine(FytWheelKeys.report())
         appendLine(WheelKeyService.report(appContext))
         WheelKeyLog.report(WheelKeyService.connected()).forEach { appendLine(it) }
         appendLine()

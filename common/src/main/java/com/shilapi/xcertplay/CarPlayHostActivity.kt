@@ -1528,7 +1528,8 @@ class CarPlayHostActivity : ComponentActivity() {
             // A media button is a tap, and BYD sends each tap as an instant down/up pair: send once,
             // on the press. The release is swallowed rather than passed on, or BYD's own player would
             // receive an unpaired key.
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
+                FytWheelKeys.shouldForward(mediaPress, "android-window")) {
                 val sent = controller?.sendMediaButton(mediaPress) == true
                 appendLog("Media: wheel key ${event.keyCode} -> CarPlay $mediaPress sent=$sent")
             }
