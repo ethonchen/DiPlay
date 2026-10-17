@@ -129,7 +129,7 @@ jobs:
         with:
           name: android6-media-key-routing
           path: android6-smoke/
-  publish-wheel1:
+  publish-wheel2:
     if: github.repository == 'ethonchen/DiPlay' && github.ref == 'refs/heads/main'
     needs: [api23-smoke, media-key-system-check]
     runs-on: ubuntu-latest
@@ -149,16 +149,16 @@ jobs:
         run: |
           set -euo pipefail
           # This job is scoped to this release; later versions must choose their own release policy.
-          if ! grep -q 'versionName = "0.2.20-android6-q7-wheel1"' mobile/build.gradle.kts; then exit 0; fi
-          tag=v0.2.20-android6-q7-wheel1
+          if ! grep -q 'versionName = "0.2.20-android6-q7-wheel2"' mobile/build.gradle.kts; then exit 0; fi
+          tag=v0.2.20-android6-q7-wheel2
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then exit 0; fi
           mkdir release
-          cp apk/mobile-q7.apk release/DiPlay-Q7-0.2.20-wheel1.apk
-          (cd release && sha256sum DiPlay-Q7-0.2.20-wheel1.apk > SHA256SUMS.txt)
-          cp docs/RELEASE-NOTES-Q7-WHEEL1.md release/notes.md
+          cp apk/mobile-q7.apk release/DiPlay-Q7-0.2.20-wheel2.apk
+          (cd release && sha256sum DiPlay-Q7-0.2.20-wheel2.apk > SHA256SUMS.txt)
+          cp docs/RELEASE-NOTES-Q7-WHEEL2.md release/notes.md
           printf '\n源代码：`%s`\n构建与测试：https://github.com/%s/actions/runs/%s\n' \
             "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> release/notes.md
           cat release/SHA256SUMS.txt >> release/notes.md
           gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title 'HHQ Q7 Android 6 — 方向盘切歌修复（wheel1）' --notes-file release/notes.md \
-            release/DiPlay-Q7-0.2.20-wheel1.apk release/SHA256SUMS.txt
+            --title 'HHQ Q7 Android 6 — 方向盘切歌修复（wheel2）' --notes-file release/notes.md \
+            release/DiPlay-Q7-0.2.20-wheel2.apk release/SHA256SUMS.txt
