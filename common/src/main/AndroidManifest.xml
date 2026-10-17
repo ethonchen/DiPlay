@@ -144,6 +144,18 @@
             </intent-filter>
         </service>
 
+        <receiver android:name="com.shilapi.xcertplay.FytLegacyMediaReceiver" android:exported="true">
+            <intent-filter android:priority="1000">
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+                <action android:name="com.android.music.musicservicecommand" />
+                <action android:name="com.android.music.next" />
+                <action android:name="com.android.music.previous" />
+                <action android:name="com.android.music.togglepause" />
+                <action android:name="com.android.music.pause" />
+                <action android:name="com.syu.ms.action.external_command" />
+            </intent-filter>
+        </receiver>
+
         <!-- Optional: steering-wheel keys for the dashboard map zoom (docs/BYD_NAVIGATION.md). -->
         <service
             android:name="com.shilapi.xcertplay.WheelKeyService"

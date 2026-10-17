@@ -34,6 +34,7 @@ internal object FytWheelKeys {
         main.post {
             if (!legacyFyt(Build.VERSION.SDK_INT, Build.MANUFACTURER, Build.MODEL, Build.BOARD)) return@post
             if (AirPlayPersistence.loadCarBluetoothAudio(app)) {
+                FytBspKeys.stop(worker)
                 connection?.stop()
                 connection = null
                 owner = null
@@ -43,6 +44,7 @@ internal object FytWheelKeys {
                 return@post
             }
             if (owner === expected && connection != null) return@post
+            FytBspKeys.start(main, worker)
             connection?.stop()
             owner = expected
             duplicates.clear()
@@ -57,6 +59,7 @@ internal object FytWheelKeys {
     fun stop() {
         main.post {
             active = false
+            FytBspKeys.stop(worker)
             connection?.stop()
             connection = null
             owner = null
@@ -65,7 +68,7 @@ internal object FytWheelKeys {
         }
     }
 
-    fun report(): String = "FYT wheel keys active=$active state=$state"
+    fun report(): String = "FYT wheel keys active=$active state=$state\n${FytLegacyMediaKeys.report()}\n${FytBspKeys.report()}"
 
     /** Some firmware emits the same tap through both vendor and Android callbacks. */
     fun shouldForward(index: Int, source: String): Boolean =
@@ -94,10 +97,11 @@ internal class FytWheelKeyConnection(
     private val worker: Executor,
     private val onKey: (Int, String) -> Unit,
     private val note: (String) -> Unit,
+    private val readFocusProperty: () -> String = ::readFytFocusProperty,
 ) {
-    private var stopped = true
+    @Volatile private var stopped = true
     private var bound = false
-    private var generation = Any()
+    @Volatile private var generation = Any()
     private var subscription: FytKeySubscription? = null
     private val retry = Runnable { bind() }
     private val service = object : ServiceConnection {
@@ -107,7 +111,9 @@ internal class FytWheelKeyConnection(
             val owner = generation
             worker.execute {
                 val next = runCatching {
-                    FytKeySubscription(binder) { code, ints ->
+                    FytKeySubscription(binder, readFocusProperty, { message ->
+                        main.post { if (!stopped && generation === owner) note(message) }
+                    }) { code, ints ->
                         main.post {
                             if (!stopped && generation === owner) {
                                 // Numeric key data only; never vendor strings (which can contain personal data).
@@ -115,7 +121,10 @@ internal class FytWheelKeyConnection(
                                 FytKeySubscription.mediaKey(code, ints)?.let { onKey(it, "fyt-$code") }
                             }
                         }
-                    }.also { it.register() }
+                    }.also {
+                        it.register()
+                        if (!stopped && generation === owner) it.claimKeyFocus()
+                    }
                 }
                 main.post {
                     if (stopped || generation !== owner) {
@@ -167,7 +176,13 @@ internal class FytWheelKeyConnection(
 }
 
 /** Minimal FYT wire protocol, independently implemented from the published SDK (see docs/FYT_WHEEL_KEYS.md). */
-internal class FytKeySubscription(toolkit: IBinder, private val update: (Int, IntArray?) -> Unit) {
+internal class FytKeySubscription(
+    toolkit: IBinder,
+    readFocusProperty: () -> String = ::readFytFocusProperty,
+    private val note: (String) -> Unit = {},
+    private val updates: List<Int> = listOf(0, 37, 60, 133),
+    private val update: (Int, IntArray?) -> Unit,
+) {
     private val module: IBinder = parcels { data, reply ->
         data.writeInterfaceToken("com.syu.ipc.IRemoteToolkit")
         data.writeInt(0) // FinalMainServer.MODULE_CODE_MAIN (not FinalMain.MODULE_MAIN = 1).
@@ -175,6 +190,8 @@ internal class FytKeySubscription(toolkit: IBinder, private val update: (Int, In
         reply.readException()
         checkNotNull(reply.readStrongBinder()) { "FYT MAIN module missing" }
     }
+    private val focus = FytKeyFocus(readFocusProperty, ::writeFocusProperty, note)
+    @Volatile private var rawArmedAt = Long.MAX_VALUE
     val registeredCodes = mutableListOf<Int>()
     private val callback = object : Binder() {
         override fun onTransact(code: Int, data: Parcel, reply: Parcel?, flags: Int): Boolean {
@@ -188,7 +205,9 @@ internal class FytKeySubscription(toolkit: IBinder, private val update: (Int, In
             val ints = data.createIntArray()
             data.createFloatArray()
             data.createStringArray()
-            if (updateCode in UPDATE_CODES) update(updateCode, ints)
+            if (updateCode == 133 && SystemClock.elapsedRealtime() < rawArmedAt) {
+                note("initial raw-key replay ignored")
+            } else if (updateCode in updates) update(updateCode, ints)
             reply?.writeNoException()
             return true
         }
@@ -196,26 +215,43 @@ internal class FytKeySubscription(toolkit: IBinder, private val update: (Int, In
 
     fun register() {
         // 37 is the old FYT player command; 133 exists only on newer service revisions.
-        // Flag 0 still subscribes, but does NOT replay the last key as a ghost tap on connection.
-        for (code in UPDATE_CODES) runCatching {
+        // FYT raw-key receivers use update=1; ignore its initial replay until focus settles.
+        // Legacy player/direction subscriptions keep update=0 (no replay).
+        for (code in updates) runCatching {
             registration(3, code)
             registeredCodes.add(code)
         }
         check(registeredCodes.isNotEmpty()) { "No FYT key callbacks supported" }
     }
-    fun close() { registeredCodes.forEach { runCatching { registration(4, it) } } }
+    fun claimKeyFocus() {
+        focus.claim()
+        rawArmedAt = SystemClock.elapsedRealtime() + 350
+    }
+    fun close() {
+        rawArmedAt = Long.MAX_VALUE
+        focus.release()
+        registeredCodes.forEach { runCatching { registration(4, it) } }
+    }
+    private fun writeFocusProperty(value: String) = parcels { data, reply ->
+        data.writeInterfaceToken("com.syu.ipc.IRemoteModule")
+        data.writeInt(41) // FinalMain.C_SYSTEM_PROPERTIES; vendor service owns the required permission.
+        data.writeIntArray(null)
+        data.writeFloatArray(null)
+        data.writeStringArray(arrayOf("sys.carlink.type", value))
+        check(module.transact(1, data, reply, 0)) { "FYT property command unavailable" }
+        if (reply.dataSize() > 0) reply.readException()
+    }
     private fun registration(transaction: Int, code: Int) = parcels { data, reply ->
         data.writeInterfaceToken("com.syu.ipc.IRemoteModule")
         data.writeStrongBinder(callback)
         data.writeInt(code)
-        if (transaction == 3) data.writeInt(0)
+        if (transaction == 3) data.writeInt(if (code == 0 || code == 133) 1 else 0)
         check(module.transact(transaction, data, reply, 0)) { "FYT subscription unavailable" }
         // Several vendor versions return an empty Parcel for void methods instead of writeNoException.
         if (reply.dataSize() > 0) reply.readException()
     }
 
     companion object {
-        private val UPDATE_CODES = listOf(37, 60, 133)
         fun mediaKey(code: Int, ints: IntArray?): Int? = when (code) {
             37 -> if (ints != null && ints.size >= 2 && ints[0] in listOf(8, 10)) when (ints[1]) {
                 4 -> CarPlayMediaButton.PREVIOUS
@@ -236,4 +272,51 @@ internal class FytKeySubscription(toolkit: IBinder, private val update: (Int, In
             try { return block(data, reply) } finally { reply.recycle(); data.recycle() }
         }
     }
+}
+
+
+private fun readFytFocusProperty(): String = Class.forName("android.os.SystemProperties")
+    .getMethod("get", String::class.java, String::class.java)
+    .invoke(null, "sys.carlink.type", "") as String
+
+/** The FYT service accepts a subscription even when no key focus was granted. Verify the write. */
+internal class FytKeyFocus(
+    private val read: () -> String,
+    private val write: (String) -> Unit,
+    private val note: (String) -> Unit,
+    private val pause: () -> Unit = { Thread.sleep(50) },
+) {
+    private var previous: String? = null
+    fun claim() {
+        runCatching {
+            val before = read()
+            if (before == "2") { note("key focus already=2"); return }
+            previous = before
+            write("2")
+            val actual = await("2")
+            note("key focus before=${shown(before)} requested=2 actual=${shown(actual)} verified=${actual == "2"}")
+        }.onFailure { note("key focus request failed: ${it.javaClass.simpleName}") }
+    }
+    fun release() {
+        val restore = previous ?: return
+        runCatching {
+            // Do not overwrite a different owner's later choice.
+            if (read() == "2") {
+                write(restore)
+                val actual = await(restore)
+                note("key focus restore=${shown(restore)} actual=${shown(actual)} verified=${actual == restore}")
+            }
+            previous = null
+        }.onFailure { note("key focus restore failed: ${it.javaClass.simpleName}") }
+    }
+    private fun await(expected: String): String {
+        var actual = read()
+        repeat(20) {
+            if (actual == expected) return actual
+            pause()
+            actual = read()
+        }
+        return actual
+    }
+    private fun shown(value: String): String = if (value.isEmpty()) "<empty>" else value
 }

@@ -1,0 +1,69 @@
+name: Publish vehicle-tested Q7 wheel4
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/release-q7-wheel4.yml
+      - docs/RELEASE-NOTES-Q7-WHEEL4.md
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: release-q7-wheel4
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'ethonchen/DiPlay' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require the exact vehicle-tested runtime source and successful checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Only release documentation and this publication workflow may differ.
+          git diff --exit-code e960c1111cc51eafb7f581f7f7bee28969f10a05 "$GITHUB_SHA" -- . \
+            ':(exclude)docs/EXPERIMENT-Q7-WHEEL4.md' \
+            ':(exclude)docs/RELEASE-NOTES-Q7-WHEEL4.md' \
+            ':(exclude).github/workflows/release-q7-wheel4.yml'
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/39018203927" > "$RUNNER_TEMP/tested-run.json"
+          python3 - "$RUNNER_TEMP/tested-run.json" <<'PY'
+          import json, sys
+          run = json.load(open(sys.argv[1]))
+          assert run['head_sha'] == 'e960c1111cc51eafb7f581f7f7bee28969f10a05'
+          assert run['status'] == 'completed' and run['conclusion'] == 'success'
+          PY
+      - name: Download the same APK that passed the vehicle test
+        uses: actions/download-artifact@v4
+        with:
+          name: DiPlay-Q7-slim-standalone
+          github-token: ${{ github.token }}
+          run-id: 39018203927
+          path: tested-apk
+      - name: Verify and publish the owner-approved wheel4 APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s  %s\n' f173c80dace9c27c578247bd724a386cd81629da6e21ed641a3eabec2bae03d2 tested-apk/mobile-q7.apk | sha256sum --check --strict
+          tag=v0.2.20-android6-q7-wheel4
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; preserve its published assets."
+            exit 0
+          fi
+          mkdir release
+          cp tested-apk/mobile-q7.apk release/DiPlay-Q7-0.2.20-wheel4.apk
+          (cd release && sha256sum DiPlay-Q7-0.2.20-wheel4.apk > SHA256SUMS.txt)
+          cp docs/RELEASE-NOTES-Q7-WHEEL4.md release/notes.md
+          printf '\n合并主干：`%s`\n发布记录：https://github.com/%s/actions/runs/%s\n' \
+            "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> release/notes.md
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --latest \
+            --title 'HHQ Q7 Android 6 — 方向盘切歌实车验证版（wheel4）' --notes-file release/notes.md \
+            release/DiPlay-Q7-0.2.20-wheel4.apk release/SHA256SUMS.txt
