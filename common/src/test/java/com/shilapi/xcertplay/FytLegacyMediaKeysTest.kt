@@ -42,11 +42,19 @@ class FytLegacyMediaKeysTest {
 
     @Test fun stockMusicAndFytCommandBroadcastsForwardRealNextAndPreviousCommands() = withRegistration { _, _, _, keys ->
         val app = RuntimeEnvironment.getApplication()
-        app.sendBroadcast(Intent("com.android.music.musicservicecommand").putExtra("command", "next"))
-        app.sendBroadcast(Intent("com.syu.ms.action.external_command").putExtra("action_command", "previous"))
+        app.sendBroadcast(Intent("com.android.music.musicservicecommand").putExtra("command", "next").addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY))
+        app.sendBroadcast(Intent("com.syu.ms.action.external_command").putExtra("action_command", "previous").addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY))
         shadowOf(Looper.getMainLooper()).idle()
         assertEquals(listOf(4, 5), keys.map { it.first })
         assertTrue(keys.all { it.second == "fyt-legacy-dynamic" })
+    }
+
+    @Test fun implicitBroadcastDeliveredToBothReceiversSkipsOnlyOnceWithoutVendorBinder() = withRegistration { _, _, _, keys ->
+        val app = RuntimeEnvironment.getApplication()
+        app.sendBroadcast(Intent("com.android.music.musicservicecommand").putExtra("command", "next"))
+        app.sendBroadcast(Intent("com.android.music.previous"))
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(listOf(4, 5), keys.map { it.first })
     }
 
     @Test fun explicitMediaReceiverForwardsDownOnlyAndAcceptsFilledInKeyEvents() = withRegistration { session, _, _, keys ->

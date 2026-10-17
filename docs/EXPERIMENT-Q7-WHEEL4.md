@@ -19,8 +19,9 @@ playback state and tear down all registrations with the CarPlay owner.
 Receive stock Android music-service and FYT external-command broadcasts through
 both a live receiver and the manifest receiver. Forward only known command
 strings or Android media key codes through the existing CarPlay sender. Ignore
-key-up/repeat events and unknown vendor numbers. Existing sender deduplication
-handles simultaneous sources.
+key-up/repeat events and unknown vendor numbers. Deduplicate manifest/live
+delivery within the registration, independently of vendor Binder availability;
+the existing sender also deduplicates simultaneous vendor and Android sources.
 
 Add a passive framework `syu` BSP module 0/update 2 subscription for diagnostics.
 It never writes a BSP command, changes focus or guesses raw button mappings.

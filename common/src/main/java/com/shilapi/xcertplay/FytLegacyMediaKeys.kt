@@ -11,6 +11,7 @@ import android.media.AudioManager
 import android.media.RemoteControlClient
 import android.media.session.MediaSession
 import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
 import androidx.core.content.ContextCompat
@@ -65,7 +66,14 @@ internal object FytLegacyMediaKeys {
         val action = intent.action?.takeIf { it in actions } ?: "<unsupported>"
         note("broadcast source=$source action=$action mapped=$index active=${owner != null}")
         if (index == null || owner == null) return false
-        return owner.forward(index, "fyt-legacy-$source")
+        val channel = "fyt-legacy-$source"
+        // Android 6 may deliver the same implicit broadcast to both receivers.
+        // Deduplicate here even before the independent vendor Binder connects.
+        if (!owner.duplicates.accept(index, channel, SystemClock.elapsedRealtime())) {
+            note("duplicate suppressed index=$index source=$source")
+            return true
+        }
+        return owner.forward(index, channel)
     }
 
     internal fun mediaIndex(intent: Intent): Int? {
@@ -114,6 +122,7 @@ internal object FytLegacyMediaKeys {
         private val pending: PendingIntent,
         val forward: (Int, String) -> Boolean,
     ) {
+        val duplicates = FytKeyDuplicates()
         private var live = false
         private var button = false
         private var remote: RemoteControlClient? = null
