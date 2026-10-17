@@ -87,6 +87,9 @@ class FytWheelKeysTest {
         val f = Fixture(rawSupported = true)
         f.start(); f.drain()
         assertEquals("2", f.module.focusProperty)
+        assertTrue(f.keys.isEmpty()) // The stock service replays its last raw key on registration.
+        assertTrue(f.notes.any { it == "initial raw-key replay ignored" })
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(400))
         assertTrue(f.notes.any { it.contains("requested=2 actual=2 verified=true") })
         f.module.emit(133, intArrayOf(87)); f.module.emit(133, intArrayOf(88))
         f.module.emit(133, intArrayOf(19))
@@ -209,7 +212,12 @@ class FytWheelKeysTest {
             val update = data.readInt()
             if (update == 133 && !rawSupported) return false
             when (code) {
-                3 -> { registrations.add(update to data.readInt()); callbacks[update] = callback }
+                3 -> {
+                    val sync = data.readInt()
+                    registrations.add(update to sync)
+                    callbacks[update] = callback
+                    if (update == 133 && sync == 1) emitTo(callback, 133, intArrayOf(87))
+                }
                 4 -> { assertSame(callbacks[update], callback); unregistered.add(update) }
                 else -> fail("Unexpected FYT command $code")
             }

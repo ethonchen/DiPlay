@@ -176,7 +176,7 @@ internal class FytWheelKeyConnection(
 internal class FytKeySubscription(
     toolkit: IBinder,
     readFocusProperty: () -> String = ::readFytFocusProperty,
-    note: (String) -> Unit = {},
+    private val note: (String) -> Unit = {},
     private val update: (Int, IntArray?) -> Unit,
 ) {
     private val module: IBinder = parcels { data, reply ->
@@ -187,6 +187,7 @@ internal class FytKeySubscription(
         checkNotNull(reply.readStrongBinder()) { "FYT MAIN module missing" }
     }
     private val focus = FytKeyFocus(readFocusProperty, ::writeFocusProperty, note)
+    @Volatile private var rawArmedAt = Long.MAX_VALUE
     val registeredCodes = mutableListOf<Int>()
     private val callback = object : Binder() {
         override fun onTransact(code: Int, data: Parcel, reply: Parcel?, flags: Int): Boolean {
@@ -200,7 +201,9 @@ internal class FytKeySubscription(
             val ints = data.createIntArray()
             data.createFloatArray()
             data.createStringArray()
-            if (updateCode in UPDATE_CODES) update(updateCode, ints)
+            if (updateCode == 133 && SystemClock.elapsedRealtime() < rawArmedAt) {
+                note("initial raw-key replay ignored")
+            } else if (updateCode in UPDATE_CODES) update(updateCode, ints)
             reply?.writeNoException()
             return true
         }
@@ -208,15 +211,20 @@ internal class FytKeySubscription(
 
     fun register() {
         // 37 is the old FYT player command; 133 exists only on newer service revisions.
-        // Replay only the source state (0), never the last key (37/60/133).
+        // FYT raw-key receivers use update=1; ignore its initial replay until focus settles.
+        // Legacy player/direction subscriptions keep update=0 (no replay).
         for (code in UPDATE_CODES) runCatching {
             registration(3, code)
             registeredCodes.add(code)
         }
         check(registeredCodes.isNotEmpty()) { "No FYT key callbacks supported" }
     }
-    fun claimKeyFocus() { focus.claim() }
+    fun claimKeyFocus() {
+        focus.claim()
+        rawArmedAt = SystemClock.elapsedRealtime() + 350
+    }
     fun close() {
+        rawArmedAt = Long.MAX_VALUE
         focus.release()
         registeredCodes.forEach { runCatching { registration(4, it) } }
     }
@@ -233,7 +241,7 @@ internal class FytKeySubscription(
         data.writeInterfaceToken("com.syu.ipc.IRemoteModule")
         data.writeStrongBinder(callback)
         data.writeInt(code)
-        if (transaction == 3) data.writeInt(if (code == 0) 1 else 0)
+        if (transaction == 3) data.writeInt(if (code == 0 || code == 133) 1 else 0)
         check(module.transact(transaction, data, reply, 0)) { "FYT subscription unavailable" }
         // Several vendor versions return an empty Parcel for void methods instead of writeNoException.
         if (reply.dataSize() > 0) reply.readException()

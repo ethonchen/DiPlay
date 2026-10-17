@@ -5,7 +5,9 @@ for 37/60/133, but zero callbacks. Registering alone does not establish key owne
 The FYT receiver in open-headunit also requests `sys.carlink.type=2` after subscribing.
 This build requests that property through the legacy SDK's MAIN command 41
 (`C_SYSTEM_PROPERTIES`, strings `[key,value]`), then reads the actual value back.
-It also subscribes to source-state update 0 with initial replay, so the next export
+Raw-key registration uses the stock receiver's update=1 flag, with startup replay
+filtered for 350 ms after the focus request. It also subscribes to source-state
+update 0 with initial replay, so the next export
 can distinguish a working callback transport from missing key ownership.
 
 Only the temporary `sys.carlink.type` property is changed, only during the active
