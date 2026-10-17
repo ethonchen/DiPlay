@@ -38,15 +38,23 @@ class FytLegacyMediaKeysTest {
         assertEquals(ComponentName(RuntimeEnvironment.getApplication(), FytLegacyMediaReceiver::class.java), target.component)
         FytLegacyMediaKeys.updatePlayback(true)
         verify(remote).setPlaybackState(RemoteControlClient.PLAYSTATE_PLAYING)
+        assertTrue(FytLegacyMediaKeys.report(), FytLegacyMediaKeys.report().contains("liveReceiver=true"))
     }
 
     @Test fun stockMusicAndFytCommandBroadcastsForwardRealNextAndPreviousCommands() = withRegistration { _, _, _, keys ->
         val app = RuntimeEnvironment.getApplication()
-        app.sendBroadcast(Intent("com.android.music.musicservicecommand").putExtra("command", "next").addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY))
-        app.sendBroadcast(Intent("com.syu.ms.action.external_command").putExtra("action_command", "previous").addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY))
+        app.sendBroadcast(Intent("com.android.music.musicservicecommand").putExtra("command", "next"))
+        app.sendBroadcast(Intent("com.syu.ms.action.external_command").putExtra("action_command", "previous"))
         shadowOf(Looper.getMainLooper()).idle()
         assertEquals(listOf(4, 5), keys.map { it.first })
-        assertTrue(keys.all { it.second == "fyt-legacy-dynamic" })
+        // Either receiver may win; Android does not guarantee their delivery order.
+        assertTrue(keys.all { it.second in setOf("fyt-legacy-dynamic", "fyt-legacy-manifest") })
+    }
+
+    @Test fun liveReceiverChannelForwardsEvenWhenNoManifestDeliveryOccurs() = withRegistration { _, _, _, keys ->
+        assertTrue(FytLegacyMediaKeys.receive(Intent("com.android.music.next"), "dynamic"))
+        assertTrue(FytLegacyMediaKeys.receive(Intent("com.android.music.previous"), "dynamic"))
+        assertEquals(listOf(4 to "fyt-legacy-dynamic", 5 to "fyt-legacy-dynamic"), keys)
     }
 
     @Test fun implicitBroadcastDeliveredToBothReceiversSkipsOnlyOnceWithoutVendorBinder() = withRegistration { _, _, _, keys ->
