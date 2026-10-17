@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 mkdir -p android6-smoke
+adb shell getprop ro.build.version.sdk > android6-smoke/media-key-sdk.txt
+test "$(tr -d '\r\n' < android6-smoke/media-key-sdk.txt)" = 23
 probe_dir="$(mktemp -d)"
 package=com.diplay.mediakeyprobe
 cleanup() {
