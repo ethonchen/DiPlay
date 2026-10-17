@@ -34,6 +34,11 @@ internal object FytWheelKeys {
         main.post {
             if (!legacyFyt(Build.VERSION.SDK_INT, Build.MANUFACTURER, Build.MODEL, Build.BOARD)) return@post
             if (AirPlayPersistence.loadCarBluetoothAudio(app)) {
+                connection?.stop()
+                connection = null
+                owner = null
+                active = false
+                duplicates.clear()
                 state = "car Bluetooth audio: wheel remains with AVRCP"
                 return@post
             }

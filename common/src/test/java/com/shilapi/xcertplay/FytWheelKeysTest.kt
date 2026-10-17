@@ -221,7 +221,7 @@ class FytWheelKeysTest {
         val keys = mutableListOf<Pair<Int, String>>()
         val notes = mutableListOf<String>()
         val connection = FytWheelKeyConnection(context, Handler(Looper.getMainLooper()), queue,
-            onKey ?: { i, s -> keys.add(i to s) }, { notes.add(it) })
+            onKey ?: { i, s -> keys.add(i to s); Unit }, { notes.add(it) })
         fun start() { connection.start(); context.service.onServiceConnected(null, toolkit) }
         fun drain() { repeat(3) { queue.drain(); shadowOf(Looper.getMainLooper()).idle() } }
     }
