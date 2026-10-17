@@ -1,7 +1,7 @@
 # Q7 wheel4: legacy media input
 
-Experimental branch only. Do not merge or mark the vehicle issue resolved until
-the owner confirms operation on the HHQ Q7 Android 6 unit.
+Vehicle-confirmed on 2026-10-17. The owner authorized merging and publishing
+the exact wheel4 APK after successfully testing next/previous on the HHQ Q7.
 
 ## Evidence from the latest vehicle log
 
@@ -40,5 +40,15 @@ API 23 unit tests cover registrations, dynamic and explicit delivery, filled-in
 KeyEvents, production CarPlay sender forwarding, teardown and passive BSP
 subscription. The optimized installed APK also receives next/previous broadcasts
 on an Android 6 emulator. The full repository checks run in parallel with the
-APK build. None of these checks establishes physical MCU delivery on the Q7;
-that still requires the vehicle test.
+APK build. The owner then confirmed actual vehicle operation in report 44.txt:
+three NEXT commands (index 4) and two PREVIOUS commands (index 5) were sent
+successfully through the dynamic MEDIA_BUTTON receiver. All five duplicate
+manifest deliveries were suppressed. Key-up events were ignored as intended.
+The accessibility key-service counter remains zero because this path does not
+use that optional service.
+
+The current session records no crash, audio write error, dropped output packet
+or rebuffer. There is one missing media packet and two missing navigation
+packets; no accumulating playback failure is evident in this sample. Preserve
+the tested runtime code for release rather than retuning buffers from this
+short sample.
