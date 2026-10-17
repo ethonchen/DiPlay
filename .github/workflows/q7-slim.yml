@@ -43,7 +43,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: wheel3-full-checks
+          name: wheel4-full-checks
           path: |
             shared/build/reports/tests/
             common/build/reports/tests/
@@ -78,7 +78,7 @@ jobs:
           test -s "$HOME/.android/debug.keystore"
           echo "DIPLAY_DEBUG_KEYSTORE_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
       - name: FYT focus and Binder regression tests
-        run: ./gradlew :common:testDebugUnitTest --tests com.shilapi.xcertplay.FytWheelKeysTest --tests com.shilapi.xcertplay.FytKeyFocusTest --stacktrace
+        run: ./gradlew :common:testDebugUnitTest --tests com.shilapi.xcertplay.FytWheelKeysTest --tests com.shilapi.xcertplay.FytKeyFocusTest --tests com.shilapi.xcertplay.FytLegacyMediaKeysTest --tests com.shilapi.xcertplay.FytBspProtocolTest --stacktrace
       - name: Provision the same public experimental identity as the tested APK
         run: |
           curl --fail --location --retry 3 https://github.com/shihabal3amri/DiPlay/releases/download/v0.2.14/DiPlay-0.2.14.apk -o "$RUNNER_TEMP/upstream-public.apk"

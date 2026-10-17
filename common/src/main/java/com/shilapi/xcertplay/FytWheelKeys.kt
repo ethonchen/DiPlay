@@ -34,6 +34,7 @@ internal object FytWheelKeys {
         main.post {
             if (!legacyFyt(Build.VERSION.SDK_INT, Build.MANUFACTURER, Build.MODEL, Build.BOARD)) return@post
             if (AirPlayPersistence.loadCarBluetoothAudio(app)) {
+                FytBspKeys.stop(worker)
                 connection?.stop()
                 connection = null
                 owner = null
@@ -43,6 +44,7 @@ internal object FytWheelKeys {
                 return@post
             }
             if (owner === expected && connection != null) return@post
+            FytBspKeys.start(main, worker)
             connection?.stop()
             owner = expected
             duplicates.clear()
@@ -57,6 +59,7 @@ internal object FytWheelKeys {
     fun stop() {
         main.post {
             active = false
+            FytBspKeys.stop(worker)
             connection?.stop()
             connection = null
             owner = null
@@ -65,7 +68,7 @@ internal object FytWheelKeys {
         }
     }
 
-    fun report(): String = "FYT wheel keys active=$active state=$state"
+    fun report(): String = "FYT wheel keys active=$active state=$state\n${FytLegacyMediaKeys.report()}\n${FytBspKeys.report()}"
 
     /** Some firmware emits the same tap through both vendor and Android callbacks. */
     fun shouldForward(index: Int, source: String): Boolean =
@@ -177,6 +180,7 @@ internal class FytKeySubscription(
     toolkit: IBinder,
     readFocusProperty: () -> String = ::readFytFocusProperty,
     private val note: (String) -> Unit = {},
+    private val updates: List<Int> = listOf(0, 37, 60, 133),
     private val update: (Int, IntArray?) -> Unit,
 ) {
     private val module: IBinder = parcels { data, reply ->
@@ -203,7 +207,7 @@ internal class FytKeySubscription(
             data.createStringArray()
             if (updateCode == 133 && SystemClock.elapsedRealtime() < rawArmedAt) {
                 note("initial raw-key replay ignored")
-            } else if (updateCode in UPDATE_CODES) update(updateCode, ints)
+            } else if (updateCode in updates) update(updateCode, ints)
             reply?.writeNoException()
             return true
         }
@@ -213,7 +217,7 @@ internal class FytKeySubscription(
         // 37 is the old FYT player command; 133 exists only on newer service revisions.
         // FYT raw-key receivers use update=1; ignore its initial replay until focus settles.
         // Legacy player/direction subscriptions keep update=0 (no replay).
-        for (code in UPDATE_CODES) runCatching {
+        for (code in updates) runCatching {
             registration(3, code)
             registeredCodes.add(code)
         }
@@ -248,7 +252,6 @@ internal class FytKeySubscription(
     }
 
     companion object {
-        private val UPDATE_CODES = listOf(0, 37, 60, 133)
         fun mediaKey(code: Int, ints: IntArray?): Int? = when (code) {
             37 -> if (ints != null && ints.size >= 2 && ints[0] in listOf(8, 10)) when (ints[1]) {
                 4 -> CarPlayMediaButton.PREVIOUS

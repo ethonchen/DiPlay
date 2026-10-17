@@ -312,6 +312,7 @@ internal object CarPlayMediaKeys {
             setMetadata(androidMetadata(nowPlaying, shownArtworkLocked()))
             isActive = true
         }
+        session?.let { FytLegacyMediaKeys.start(context, it, expectedController) }
         val message = "media keys active flags=3 focusDisabled=$focusDisabled focusGranted=$granted"
         Log.i(TAG, message)
         WheelKeyLog.note(message)
@@ -363,6 +364,7 @@ internal object CarPlayMediaKeys {
             it.release()
         }
         session = null
+        FytLegacyMediaKeys.stop()
         mediaAudioActive = false
         nowPlaying = CarPlayNowPlaying()
         artwork = null
@@ -379,6 +381,7 @@ internal object CarPlayMediaKeys {
         } else {
             mediaAudioActive
         }
+        FytLegacyMediaKeys.updatePlayback(playing)
         session?.setPlaybackState(
             PlaybackState.Builder()
                 .setActions(ACTIONS)
@@ -417,6 +420,13 @@ internal object CarPlayMediaKeys {
     @Synchronized
     internal fun onFytMediaKey(expected: CarPlayController, index: Int, source: String) {
         if (controller === expected) send(index, source)
+    }
+
+    @Synchronized
+    internal fun onLegacyFytMediaKey(expected: CarPlayController, index: Int, source: String): Boolean {
+        if (controller !== expected || session == null) return false
+        send(index, source)
+        return true
     }
 
     /** The steering-wheel microphone key captured outside the Android key stream (Geely/Lynk). */
