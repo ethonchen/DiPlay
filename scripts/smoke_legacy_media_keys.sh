@@ -11,9 +11,13 @@ cleanup() {
 }
 trap cleanup EXIT
 mkdir -p "$probe_dir/classes" "$probe_dir/dex"
-javac --release 8 -cp "$ANDROID_HOME/platforms/android-37/android.jar" \
+android_jar="$(find "$ANDROID_HOME/platforms" -name android.jar | sort -V | tail -1)"
+d8_tool="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name d8 | sort -V | tail -1)"
+test -f "$android_jar"
+test -x "$d8_tool"
+javac --release 8 -cp "$android_jar" \
     -d "$probe_dir/classes" scripts/probes/LegacyMediaSessionProbe.java
-"$ANDROID_HOME/build-tools/36.0.0/d8" --min-api 23 --lib "$ANDROID_HOME/platforms/android-37/android.jar" \
+"$d8_tool" --min-api 23 --lib "$android_jar" \
     --output "$probe_dir/dex" "$probe_dir"/classes/*.class
 adb shell mkdir -p "$remote"
 adb push "$probe_dir/dex/classes.dex" "$remote/classes.dex"
