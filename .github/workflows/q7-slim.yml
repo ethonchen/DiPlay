@@ -1,7 +1,7 @@
 name: Q7 optimized APK
 on:
   push:
-    branches: [main, perf/q7-slim, "merge/upstream-**", "fix/q7-audio-**", "experiment/q7-hotspot-restore-**", "fix/q7-control-**"]
+    branches: [main, perf/q7-slim, "merge/upstream-**", "fix/q7-audio-**", "experiment/q7-hotspot-restore-**", "fix/q7-control-**", "fix/q7-wheel-**"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -98,9 +98,43 @@ jobs:
           script: |
             bash scripts/smoke_android6.sh apk/mobile-q7.apk
             bash scripts/smoke_q7_runtime.sh apk/mobile-q7.apk
+            bash scripts/smoke_legacy_media_keys.sh
       - name: Android 6 optimized APK evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: q7-slim-android6-smoke
           path: android6-smoke/
+  publish-wheel1:
+    if: github.repository == 'ethonchen/DiPlay' && github.ref == 'refs/heads/main'
+    needs: api23-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: DiPlay-Q7-slim-standalone
+          path: apk
+      - name: Publish the verified owner-requested wheel-key APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          # This job is scoped to this release; later versions must choose their own release policy.
+          if ! grep -q 'versionName = "0.2.20-android6-q7-wheel1"' mobile/build.gradle.kts; then exit 0; fi
+          tag=v0.2.20-android6-q7-wheel1
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then exit 0; fi
+          mkdir release
+          cp apk/mobile-q7.apk release/DiPlay-Q7-0.2.20-wheel1.apk
+          (cd release && sha256sum DiPlay-Q7-0.2.20-wheel1.apk > SHA256SUMS.txt)
+          cp docs/RELEASE-NOTES-Q7-WHEEL1.md release/notes.md
+          printf '\n源代码：`%s`\n构建与测试：https://github.com/%s/actions/runs/%s\n' \
+            "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> release/notes.md
+          cat release/SHA256SUMS.txt >> release/notes.md
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title 'HHQ Q7 Android 6 — 方向盘切歌修复（wheel1）' --notes-file release/notes.md \
+            release/DiPlay-Q7-0.2.20-wheel1.apk release/SHA256SUMS.txt

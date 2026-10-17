@@ -303,11 +303,16 @@ internal object CarPlayMediaKeys {
         }
         session = MediaSession(context, "DiPlay CarPlay").apply {
             setCallback(callback, mainHandler)
+            // API 21-25 excludes sessions without these flags from system media-key routing.
+            // They became implicit in API 26; active=true alone is not enough on the Q7's API 23.
+            @Suppress("DEPRECATION")
+            setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS or MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS)
             setMetadata(androidMetadata(nowPlaying, shownArtworkLocked()))
             isActive = true
         }
-        Log.i(TAG, "media keys active focusDisabled=$focusDisabled focusGranted=$granted")
-        WheelKeyLog.note("media keys active focusDisabled=$focusDisabled focusGranted=$granted")
+        val message = "media keys active flags=3 focusDisabled=$focusDisabled focusGranted=$granted"
+        Log.i(TAG, message)
+        WheelKeyLog.note(message)
     }
 
     private fun forwardGrantedFocusLocked() {
