@@ -9,7 +9,7 @@ concurrency:
   group: q7-slim-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  build:
+  checks:
     if: github.repository == 'ethonchen/DiPlay'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -39,6 +39,46 @@ jobs:
           echo "DIPLAY_DEBUG_KEYSTORE_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
       - name: Required tests, lint and source debug builds
         run: ./gradlew :shared:testDebugUnitTest :common:testDebugUnitTest :home:testDebugUnitTest :shared:lintDebug :common:lintDebug :mobile:lintDebug :home:lintDebug :maphost:lintDebug :mobile:assembleDebug :home:assembleDebug :maphost:assembleDebug --continue --stacktrace
+      - name: Full test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel3-full-checks
+          path: |
+            shared/build/reports/tests/
+            common/build/reports/tests/
+            samples/home/build/reports/tests/
+            mobile/build/reports/
+  build:
+    if: github.repository == 'ethonchen/DiPlay'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject credentials in public source
+        run: python3 scripts/check_public_tree.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-37.0 build-tools;36.0.0 ndk;28.2.13676358
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+      - name: Restore the tested APK signing key from main
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: diplay-android6-debug-signing-v1
+          fail-on-cache-miss: true
+      - name: Require the existing update key
+        run: |
+          test -s "$HOME/.android/debug.keystore"
+          echo "DIPLAY_DEBUG_KEYSTORE_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
+      - name: FYT focus and Binder regression tests
+        run: ./gradlew :common:testDebugUnitTest --tests com.shilapi.xcertplay.FytWheelKeysTest --tests com.shilapi.xcertplay.FytKeyFocusTest --stacktrace
       - name: Provision the same public experimental identity as the tested APK
         run: |
           curl --fail --location --retry 3 https://github.com/shihabal3amri/DiPlay/releases/download/v0.2.14/DiPlay-0.2.14.apk -o "$RUNNER_TEMP/upstream-public.apk"
@@ -129,36 +169,3 @@ jobs:
         with:
           name: android6-media-key-routing
           path: android6-smoke/
-  publish-wheel2:
-    if: github.repository == 'ethonchen/DiPlay' && github.ref == 'refs/heads/main'
-    needs: [api23-smoke, media-key-system-check]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: DiPlay-Q7-slim-standalone
-          path: apk
-      - name: Publish the verified owner-requested wheel-key APK
-        shell: bash
-        run: |
-          set -euo pipefail
-          # This job is scoped to this release; later versions must choose their own release policy.
-          if ! grep -q 'versionName = "0.2.20-android6-q7-wheel2"' mobile/build.gradle.kts; then exit 0; fi
-          tag=v0.2.20-android6-q7-wheel2
-          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then exit 0; fi
-          mkdir release
-          cp apk/mobile-q7.apk release/DiPlay-Q7-0.2.20-wheel2.apk
-          (cd release && sha256sum DiPlay-Q7-0.2.20-wheel2.apk > SHA256SUMS.txt)
-          cp docs/RELEASE-NOTES-Q7-WHEEL2.md release/notes.md
-          printf '\n源代码：`%s`\n构建与测试：https://github.com/%s/actions/runs/%s\n' \
-            "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> release/notes.md
-          cat release/SHA256SUMS.txt >> release/notes.md
-          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title 'HHQ Q7 Android 6 — 方向盘切歌修复（wheel2）' --notes-file release/notes.md \
-            release/DiPlay-Q7-0.2.20-wheel2.apk release/SHA256SUMS.txt

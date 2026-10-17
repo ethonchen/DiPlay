@@ -36,11 +36,11 @@ class FytWheelKeysTest {
         assertEquals(0, f.module.registrations.size) // No synchronous IPC from the UI callback.
         f.drain()
         assertEquals(0, f.toolkit.requestedModule)
-        assertEquals(listOf(37 to 0, 60 to 0), f.module.registrations)
+        assertEquals(listOf(0 to 1, 37 to 0, 60 to 0), f.module.registrations)
         assertEquals(1, f.module.callbacks.values.distinct().size)
         f.connection.stop()
         f.drain()
-        assertEquals(listOf(37, 60), f.module.unregistered)
+        assertEquals(listOf(0, 37, 60), f.module.unregistered)
         assertEquals(1, f.context.unbinds)
     }
 
@@ -83,14 +83,17 @@ class FytWheelKeysTest {
         f.connection.stop(); f.drain()
     }
 
-    @Test fun newerRawKeyCallbackUsesAndroidKeyCodesWithoutRequestingKeyFocus() {
+    @Test fun rawKeyCallbackReceivesKeysOnlyAfterVerifiedFocusAndRestoresOnStop() {
         val f = Fixture(rawSupported = true)
         f.start(); f.drain()
+        assertEquals("2", f.module.focusProperty)
+        assertTrue(f.notes.any { it.contains("requested=2 actual=2 verified=true") })
         f.module.emit(133, intArrayOf(87)); f.module.emit(133, intArrayOf(88))
         f.module.emit(133, intArrayOf(19))
         f.drain()
         assertEquals(listOf(4 to "fyt-133", 5 to "fyt-133"), f.keys)
         f.connection.stop(); f.drain()
+        assertEquals("0", f.module.focusProperty)
     }
 
     @Test fun serviceReconnectRejectsOldCallbacksAndDoesNotLeakBindings() {
@@ -115,7 +118,7 @@ class FytWheelKeysTest {
         f.start()
         f.connection.stop()
         f.drain()
-        assertEquals(listOf(37, 60), f.module.unregistered)
+        assertEquals(listOf(0, 37, 60), f.module.unregistered)
         f.module.emit(37, intArrayOf(10, 5))
         f.drain()
         assertTrue(f.keys.isEmpty())
@@ -190,19 +193,32 @@ class FytWheelKeysTest {
         val callbacks = mutableMapOf<Int, IBinder>()
         val registrations = mutableListOf<Pair<Int, Int>>()
         val unregistered = mutableListOf<Int>()
+        var focusProperty = "0"
         override fun onTransact(code: Int, data: Parcel, reply: Parcel?, flags: Int): Boolean {
             data.enforceInterface("com.syu.ipc.IRemoteModule")
+            if (code == 1) {
+                assertEquals(41, data.readInt())
+                assertNull(data.createIntArray())
+                assertNull(data.createFloatArray())
+                val strings = data.createStringArray()!!
+                assertEquals("sys.carlink.type", strings[0])
+                focusProperty = strings[1]
+                return true
+            }
             val callback = data.readStrongBinder()!!
             val update = data.readInt()
             if (update == 133 && !rawSupported) return false
             when (code) {
                 3 -> { registrations.add(update to data.readInt()); callbacks[update] = callback }
                 4 -> { assertSame(callbacks[update], callback); unregistered.add(update) }
-                else -> fail("Unexpected FYT command $code: adapter must only subscribe")
+                else -> fail("Unexpected FYT command $code")
             }
             return true // Real FYT versions can return no exception header for these void calls.
         }
-        fun emit(code: Int, ints: IntArray?) = emitTo(callbacks.getValue(code), code, ints)
+        fun emit(code: Int, ints: IntArray?) {
+            if (code == 133 && focusProperty != "2") return
+            emitTo(callbacks.getValue(code), code, ints)
+        }
         fun emitTo(callback: IBinder, code: Int, ints: IntArray?) {
             val data = Parcel.obtain()
             try {
@@ -221,7 +237,7 @@ class FytWheelKeysTest {
         val keys = mutableListOf<Pair<Int, String>>()
         val notes = mutableListOf<String>()
         val connection = FytWheelKeyConnection(context, Handler(Looper.getMainLooper()), queue,
-            onKey ?: { i, s -> keys.add(i to s); Unit }, { notes.add(it) })
+            onKey ?: { i, s -> keys.add(i to s); Unit }, { notes.add(it) }, { module.focusProperty })
         fun start() { connection.start(); context.service.onServiceConnected(null, toolkit) }
         fun drain() { repeat(3) { queue.drain(); shadowOf(Looper.getMainLooper()).idle() } }
     }
