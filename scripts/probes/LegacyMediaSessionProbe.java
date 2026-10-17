@@ -26,6 +26,7 @@ public final class LegacyMediaSessionProbe {
         Context system = (Context) activityThread.getMethod("getSystemContext").invoke(thread);
         Context context = system.createPackageContext("com.android.shell", 0);
         HandlerThread worker = new HandlerThread("media-key-probe");
+        worker.setDaemon(true);
         worker.start();
         List<Integer> received = Collections.synchronizedList(new ArrayList<>());
         CountDownLatch keys = new CountDownLatch(3);

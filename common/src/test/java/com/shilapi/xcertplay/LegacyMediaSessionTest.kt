@@ -54,8 +54,8 @@ class LegacyMediaSessionTest {
         verify(controller).sendMediaButton(CarPlayMediaButton.NEXT)
         verify(controller).sendMediaButton(CarPlayMediaButton.PREVIOUS)
         val report = WheelKeyLog.report(bound = false).joinToString("\n")
-        assertTrue(report, report.contains("KEYCODE_MEDIA_NEXT -> CarPlay 4 sent=true"))
-        assertTrue(report, report.contains("KEYCODE_MEDIA_PREVIOUS -> CarPlay 5 sent=true"))
+        assertTrue(report, report.contains("media key ${KeyEvent.keyCodeToString(KeyEvent.KEYCODE_MEDIA_NEXT)} -> CarPlay 4 sent=true"))
+        assertTrue(report, report.contains("media key ${KeyEvent.keyCodeToString(KeyEvent.KEYCODE_MEDIA_PREVIOUS)} -> CarPlay 5 sent=true"))
     }
 
     private fun withSession(disableFocus: Boolean, checkSession: (MediaSession, CarPlayController) -> Unit) {

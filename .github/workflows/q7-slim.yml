@@ -98,16 +98,40 @@ jobs:
           script: |
             bash scripts/smoke_android6.sh apk/mobile-q7.apk
             bash scripts/smoke_q7_runtime.sh apk/mobile-q7.apk
-            bash scripts/smoke_legacy_media_keys.sh
       - name: Android 6 optimized APK evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: q7-slim-android6-smoke
           path: android6-smoke/
+  media-key-system-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Enable emulator acceleration
+        run: sudo chmod 666 /dev/kvm
+      - name: Verify Android 6 system media-key routing with and without the flags
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 23
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: bash scripts/smoke_legacy_media_keys.sh
+      - name: Media-key routing evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android6-media-key-routing
+          path: android6-smoke/
   publish-wheel1:
     if: github.repository == 'ethonchen/DiPlay' && github.ref == 'refs/heads/main'
-    needs: api23-smoke
+    needs: [api23-smoke, media-key-system-check]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
