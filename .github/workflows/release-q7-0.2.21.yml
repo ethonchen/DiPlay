@@ -1,0 +1,82 @@
+name: Publish validated Q7 0.2.21 APK
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/release-q7-0.2.21.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: release-q7-0.2.21-upstream1
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'ethonchen/DiPlay' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require identical tested source and both successful check runs
+        shell: bash
+        run: |
+          set -euo pipefail
+          tested=d7320e3bb2057c9e0978d63e4cab5825dc881293
+          git diff --exit-code "$tested" "$GITHUB_SHA" -- . \
+            ':(exclude).github/workflows/release-q7-0.2.21.yml'
+          for run in 39087006929 39087009349; do
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" > "$RUNNER_TEMP/run-$run.json"
+          done
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/39087006929/jobs?per_page=100" > "$RUNNER_TEMP/jobs.json"
+          python3 - "$RUNNER_TEMP" "$tested" <<'PY'
+          import json, pathlib, sys
+          root, tested = pathlib.Path(sys.argv[1]), sys.argv[2]
+          for run_id in (39087006929, 39087009349):
+              run = json.loads((root / f'run-{run_id}.json').read_text())
+              assert run['head_sha'] == tested
+              assert run['status'] == 'completed' and run['conclusion'] == 'success'
+          jobs = {job['name']: job for job in json.loads((root / 'jobs.json').read_text())['jobs']}
+          for name in ('checks', 'build', 'api23-smoke', 'media-key-system-check'):
+              assert jobs[name]['conclusion'] == 'success', name
+          print('Exact runtime source and all four APK validation jobs verified.')
+          PY
+      - name: Download the APK verified on Android 6
+        uses: actions/download-artifact@v4
+        with:
+          name: DiPlay-Q7-slim-standalone
+          github-token: ${{ github.token }}
+          run-id: 39087006929
+          path: tested-apk
+      - name: Verify artifact checksum and publish the tested bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, pathlib, re
+          root = pathlib.Path('tested-apk')
+          expected = (root / 'SHA256SUMS').read_text().split()[0]
+          assert re.fullmatch('[0-9a-f]{64}', expected)
+          assert hashlib.sha256((root / 'mobile-q7.apk').read_bytes()).hexdigest() == expected
+          print('APK SHA-256:', expected)
+          PY
+          tag=v0.2.21-android6-q7-upstream1
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; preserve its published assets."
+            exit 0
+          fi
+          mkdir release
+          cp tested-apk/mobile-q7.apk release/DiPlay-Q7-0.2.21-upstream1.apk
+          (cd release && sha256sum DiPlay-Q7-0.2.21-upstream1.apk > SHA256SUMS.txt)
+          cp docs/RELEASE-NOTES-Q7-0.2.21.md release/notes.md
+          printf '\n验证源码：`%s`\n主干：`%s`\n构建与完整检查：https://github.com/%s/actions/runs/39087006929\n发布记录：https://github.com/%s/actions/runs/%s\n' \
+            d7320e3bb2057c9e0978d63e4cab5825dc881293 "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> release/notes.md
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --latest \
+            --title 'HHQ Q7 Android 6 — 0.2.21 上游更新（upstream1）' --notes-file release/notes.md \
+            release/DiPlay-Q7-0.2.21-upstream1.apk release/SHA256SUMS.txt
