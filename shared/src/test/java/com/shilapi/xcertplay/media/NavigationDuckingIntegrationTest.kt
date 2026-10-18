@@ -98,6 +98,9 @@ class NavigationDuckingIntegrationTest {
             write.invoke(renderer, pcm, 0, pcm.size)
             idle(150)
             assertEquals(1f, volume(media), 0f)
+            // Upstream PCM guidance attenuation must still trigger Q7 music ducking.
+            type.getDeclaredMethod("setNavigationAttenuationDb", Int::class.javaPrimitiveType)
+                .apply { isAccessible = true }.invoke(renderer, -20)
             pcm[1] = 16
             write.invoke(renderer, pcm, 0, pcm.size)
             idle(120)

@@ -43,11 +43,12 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: wheel4-full-checks
+          name: upstream1-full-checks
           path: |
             shared/build/reports/tests/
             common/build/reports/tests/
             samples/home/build/reports/tests/
+            common/build/reports/
             mobile/build/reports/
   build:
     if: github.repository == 'ethonchen/DiPlay'
@@ -107,6 +108,7 @@ jobs:
             shared/build/reports/tests/
             common/build/reports/tests/
             samples/home/build/reports/tests/
+            common/build/reports/
             mobile/build/reports/
             mobile/build/outputs/mapping/q7/
       - name: Remove temporary identity inputs
@@ -169,3 +171,46 @@ jobs:
         with:
           name: android6-media-key-routing
           path: android6-smoke/
+
+  publish:
+    if: github.repository == 'ethonchen/DiPlay' && github.ref == 'refs/heads/main'
+    needs: [checks, build, api23-smoke, media-key-system-check]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish only the reviewed 0.2.21 Q7 update
+        id: version
+        shell: bash
+        run: |
+          if grep -q 'versionName = "0.2.21-android6-q7-upstream1"' mobile/build.gradle.kts; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/download-artifact@v4
+        if: steps.version.outputs.publish == 'true'
+        with:
+          name: DiPlay-Q7-slim-standalone
+          path: apk
+      - name: Publish the exact APK that passed all checks
+        if: steps.version.outputs.publish == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=v0.2.21-android6-q7-upstream1
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; preserve its published assets."
+            exit 0
+          fi
+          mkdir release
+          cp apk/mobile-q7.apk release/DiPlay-Q7-0.2.21-upstream1.apk
+          (cd release && sha256sum DiPlay-Q7-0.2.21-upstream1.apk > SHA256SUMS.txt)
+          cp docs/RELEASE-NOTES-Q7-0.2.21.md release/notes.md
+          printf '\n合并主干：`%s`\n构建与检查：https://github.com/%s/actions/runs/%s\n' \
+            "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> release/notes.md
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --latest \
+            --title 'HHQ Q7 Android 6 — 0.2.21 上游更新（upstream1）' --notes-file release/notes.md \
+            release/DiPlay-Q7-0.2.21-upstream1.apk release/SHA256SUMS.txt
