@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_q7_restore_title">Ripristina l’hotspot Q7 (sperimentale)</string>
+    <string name="settings_q7_restore_permission">Consenti a DiPlay di modificare le impostazioni di sistema, poi torna e connettiti di nuovo. Prima della prossima connessione, DiPlay ripristinerà l’hotspot WPA2 salvato nella banda a 2,4 GHz.</string>
+</resources>
