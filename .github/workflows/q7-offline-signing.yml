@@ -1,5 +1,5 @@
 name: Q7 offline signing build
-# Rebuild with verified modern updater CA roots (2026-10-27).
+# Rebuild with per-certificate Android 6 CA loading (2026-10-27).
 on:
   push:
     branches: [build/q7-offline-signing-20261027]
@@ -75,7 +75,8 @@ jobs:
             adb push apk/mobile-q7.apk /data/local/tmp/q7-update-network.apk
             adb shell 'CLASSPATH=/data/local/tmp/q7-update-network.apk app_process /system/bin com.shilapi.xcertplay.update.Q7UpdateNetworkProbe "https://api.github.com/repos/ethonchen/DiPlay/releases?per_page=3" "https://gh-proxy.com/https://github.com/ethonchen/DiPlay/releases/download/v0.2.21-android6-q7-upstream1/SHA256SUMS.txt" "https://ghproxy.net/https://github.com/ethonchen/DiPlay/releases/download/v0.2.21-android6-q7-upstream1/SHA256SUMS.txt" "https://github.com/ethonchen/DiPlay/releases/download/v0.2.21-android6-q7-upstream1/SHA256SUMS.txt"' > android6-smoke/https-probe.txt
             cat android6-smoke/https-probe.txt
-            if grep -q 'Trust anchor for certification path not found' android6-smoke/https-probe.txt; then exit 1; fi
+            if grep -Eq 'SSLHandshakeException|CertPathValidatorException|Update CA bundle' android6-smoke/https-probe.txt; then exit 1; fi
+            grep -E 'Q7-UPDATE-HTTPS https://(gh-proxy.com|ghproxy.net)/https://github.com/.*status=200 prefix=3a4a96f35370da9903b52eddabd708f719ab28f58716b217e867b6e4135906e0' android6-smoke/https-probe.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
