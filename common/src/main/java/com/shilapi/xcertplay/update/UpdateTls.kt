@@ -14,15 +14,26 @@ import javax.net.ssl.X509TrustManager
 
 /** Updated public roots for the updater on Android 6/7; never changes process-wide TLS. */
 internal object UpdateTls {
+    private val certificates: List<X509Certificate> by lazy {
+        val pem = UpdateTls::class.java.classLoader!!.getResourceAsStream("update-ca-bundle.crt")
+            ?.bufferedReader(Charsets.US_ASCII)?.use { it.readText() }
+            ?: throw CertificateException("Update CA bundle is missing")
+        val factory = CertificateFactory.getInstance("X.509")
+        // Android 6's generateCertificates reads only the first PEM certificate.
+        // Give generateCertificate one block at a time, with a markable byte stream.
+        val blocks = Regex("-----BEGIN CERTIFICATE-----[\\s\\S]*?-----END CERTIFICATE-----").findAll(pem)
+        blocks.map { block ->
+            (block.value + "\n").byteInputStream(Charsets.US_ASCII).use {
+                factory.generateCertificate(it) as X509Certificate
+            }
+        }.toList().also { require(it.size >= 100) { "Update CA bundle is incomplete" } }
+    }
+
     private val trustManager: X509TrustManager by lazy {
         val platform = manager(null)
         val roots = KeyStore.getInstance(KeyStore.getDefaultType()).apply { load(null, null) }
-        val certificates = UpdateTls::class.java.classLoader!!.getResourceAsStream("update-ca-bundle.crt")
-            ?.use { CertificateFactory.getInstance("X.509").generateCertificates(it) }
-            ?: throw CertificateException("Update CA bundle is missing")
-        require(certificates.size >= 100) { "Update CA bundle is incomplete" }
         certificates.forEachIndexed { index, certificate ->
-            require(certificate is X509Certificate && certificate.basicConstraints >= 0) { "Update trust requires CA certificates" }
+            require(certificate.basicConstraints >= 0) { "Update trust requires CA certificates" }
             roots.setCertificateEntry("mozilla-$index", certificate)
         }
         val modern = manager(roots)
@@ -63,4 +74,5 @@ internal object UpdateTls {
             .trustManagers.filterIsInstance<X509TrustManager>().first()
 
     internal fun trustManagerForTest(): X509TrustManager = trustManager
+    internal fun bundledRootCountForTest(): Int = certificates.size
 }

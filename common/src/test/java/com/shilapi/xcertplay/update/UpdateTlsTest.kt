@@ -15,6 +15,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [23, 25])
 class UpdateTlsTest {
     @Test fun modernPublicRootsAreLoadedAndUnknownSelfSignedCertificatesAreRejected() {
+        assertEquals(118, UpdateTls.bundledRootCountForTest())
         val manager = UpdateTls.trustManagerForTest()
         assertTrue(manager.acceptedIssuers.any { "ISRG Root X1" in it.subjectX500Principal.name })
         assertTrue(manager.acceptedIssuers.any { "GTS Root R4" in it.subjectX500Principal.name })
