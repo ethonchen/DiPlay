@@ -333,10 +333,17 @@ class CarPlayBonjour(
         val addresses = if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.M) {
             advertisedAddresses.firstOrNull { it is Inet4Address }?.let(::listOf) ?: advertisedAddresses
         } else advertisedAddresses
+        val hostName = "carplay-${config.deviceId.replace(":", "")}"
         for (address in addresses) {
             val family = if (address is Inet4Address) "IPv4" else "IPv6"
             diagnose("Bonjour mDNS starting family=$family udpPort=5353 api=${Build.VERSION.SDK_INT}")
-            val dns = JmDNS.create(address, "carplay-${config.deviceId.replace(":", "")}")
+            // Preserve Q7's IPv4 registry and cache the host name to avoid slow reverse DNS.
+            val mdnsAddress = if (address is Inet6Address) {
+                Inet6Address.getByAddress(hostName, address.address, address.scopeId)
+            } else {
+                InetAddress.getByAddress(hostName, address.address)
+            }
+            val dns = JmDNS.create(mdnsAddress, hostName)
             interfaceMdns.add(dns)
             dns.addServiceListener("$CARPLAY_CONTROL_SERVICE_TYPE.local.", interfaceListener)
             dns.registerService(ServiceInfo.create(

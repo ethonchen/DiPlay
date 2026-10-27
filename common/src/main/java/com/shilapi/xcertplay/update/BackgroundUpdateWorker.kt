@@ -13,6 +13,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import androidx.core.content.pm.PackageInfoCompat
 import com.shilapi.xcertplay.CarPlayBackgroundSession
 import java.util.concurrent.TimeUnit
 
@@ -38,14 +39,15 @@ internal class BackgroundUpdateWorker(context: Context, parameters: WorkerParame
         val network = runCatching { InternetNetworkSelector.select(connectivity) }
             .onFailure { Log.i(TAG, "network lookup failed", it) }
             .getOrNull() ?: return retryOrGiveUp("no validated network")
-        val installedVersion = applicationContext.packageManager
-            .getPackageInfo(applicationContext.packageName, 0).versionName
+        val installed = applicationContext.packageManager.getPackageInfo(applicationContext.packageName, 0)
+        val installedVersion = installed.versionName
         // A dev build with no parsable version would otherwise show a permanent banner.
         if (installedVersion == null || UpdateVersion.parse(installedVersion) == null) return Result.success()
         return try {
             val release = UpdateReleaseLookup.latest(
                 installedVersion = installedVersion,
                 userAgent = "DiPlay/$installedVersion",
+                installedCode = PackageInfoCompat.getLongVersionCode(installed),
                 openConnection = network::openConnection,
             )
             if (release == null) UpdateAvailability.clear(applicationContext)

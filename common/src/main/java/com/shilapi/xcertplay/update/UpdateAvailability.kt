@@ -1,6 +1,7 @@
 package com.shilapi.xcertplay.update
 
 import android.content.Context
+import androidx.core.content.pm.PackageInfoCompat
 
 /** Durable metadata only. APK downloads always remain an explicit foreground action. */
 internal object UpdateAvailability {
@@ -9,6 +10,9 @@ internal object UpdateAvailability {
     private const val APK_NAME = "apk_name"
     private const val APK_URL = "apk_url"
     private const val CHECKSUMS_URL = "checksums_url"
+    private const val VERSION_CODE = "version_code"
+    private const val SHA256 = "sha256"
+    private const val SIZE = "size"
     private const val LAST_ATTEMPT_MILLIS = "last_attempt_millis"
     private const val BACKGROUND_CHECKS = "background_checks"
     private const val LAST_RESULT = "last_result"
@@ -35,8 +39,12 @@ internal object UpdateAvailability {
             apkName = values.getString(APK_NAME, null) ?: return null,
             apkUrl = values.getString(APK_URL, null) ?: return null,
             checksumsUrl = values.getString(CHECKSUMS_URL, null) ?: return null,
+            versionCode = values.getLong(VERSION_CODE, 0).takeIf { it > 0 },
+            sha256 = values.getString(SHA256, null),
+            size = values.getLong(SIZE, 0).takeIf { it > 0 },
         )
-        if (UpdateVersion.isNewer(release.tagName, installedVersion)) return release
+        val installedCode = PackageInfoCompat.getLongVersionCode(context.packageManager.getPackageInfo(context.packageName, 0))
+        if (UpdateVersion.isNewer(release, installedVersion, installedCode)) return release
         clear(context)
         return null
     }
@@ -47,6 +55,9 @@ internal object UpdateAvailability {
             .putString(APK_NAME, release.apkName)
             .putString(APK_URL, release.apkUrl)
             .putString(CHECKSUMS_URL, release.checksumsUrl)
+            .putLong(VERSION_CODE, release.versionCode ?: 0)
+            .putString(SHA256, release.sha256)
+            .putLong(SIZE, release.size ?: 0)
             .apply()
     }
 
@@ -56,6 +67,9 @@ internal object UpdateAvailability {
             .remove(APK_NAME)
             .remove(APK_URL)
             .remove(CHECKSUMS_URL)
+            .remove(VERSION_CODE)
+            .remove(SHA256)
+            .remove(SIZE)
             .apply()
     }
 
