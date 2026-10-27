@@ -53,6 +53,7 @@ internal object UpdateClient {
         val connection = openConnection(URL(url)) as? HttpURLConnection
             ?: throw IOException("Request to $url did not open an HTTP connection")
         try {
+            UpdateTls.configure(connection)
             connection.requestMethod = "GET"
             connection.connectTimeout = CONNECT_TIMEOUT_MILLIS
             connection.readTimeout = READ_TIMEOUT_MILLIS
@@ -106,6 +107,7 @@ internal object UpdateClient {
         val connection = openConnection(URL(url)) as? HttpURLConnection
             ?: throw IOException("Download from $url did not open an HTTP connection")
         try {
+            UpdateTls.configure(connection)
             connection.connectTimeout = CONNECT_TIMEOUT_MILLIS
             connection.readTimeout = READ_TIMEOUT_MILLIS
             connection.useCaches = false
