@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check install minimum, ARMv7 native libraries, API-23 signing and identity policy."""
 import argparse
+import hashlib
 from pathlib import Path
 import re
 import subprocess
@@ -33,6 +34,8 @@ def main() -> None:
         assert "Signer #1 certificate SHA-256 digest: " + args.signer_sha256.lower() in signing, "Update signing key changed"
     with zipfile.ZipFile(args.apk) as archive:
         names = set(archive.namelist())
+        roots = archive.read("update-ca-bundle.crt")
+        assert hashlib.sha256(roots).hexdigest() == "2ef52ad56b4803e264045c915e55c236cbfa045b84b81efefc218a19eb44bd2b", "Updater CA bundle changed or was stripped"
         for library in ("libxcertplay_i2c.so", "liblocal_hotspot_radio.so", "libspeex_echo.so"):
             data = archive.read("lib/armeabi-v7a/" + library)
             assert data[:5] == b"\x7fELF\x01", "ARMv7 native library must be 32-bit ELF"

@@ -22,45 +22,11 @@ jobs:
           packages: platform-tools platforms;android-37.0 build-tools;36.0.0
       - name: Download the public locally signed APK; no private key is transmitted
         run: |
-          gh api repos/ethonchen/DiPlay/git/blobs/9049e16f181f88dc663d2058545480d9362f48d8 --jq .content | base64 --decode > candidate.apk
-          printf '%s  %s\n' 546be75a28f79bf5a0402475b5f256e0f258aa4b102d4902c739f2082c6b2103 candidate.apk | sha256sum --check --strict
+          gh api repos/ethonchen/DiPlay/git/blobs/f2e77f76c34fce766c34f202168273c1b1f61c76 --jq .content | base64 --decode > candidate.apk
+          printf '%s  %s\n' baf042d941b78d014889050007c8394950887c76639faac2cbe4934e6588192a candidate.apk | sha256sum --check --strict
           python3 scripts/verify_android6_apk.py candidate.apk --build-tools "$ANDROID_HOME/build-tools/36.0.0" --standalone --optimized --signer-sha256 42dca8935a4e53f385388e4ed3058edc4e240107c057723a21574dde9d5a2928
           python3 scripts/prepare_q7_release.py candidate.apk --build-tools "$ANDROID_HOME/build-tools/36.0.0" --output release
           curl --fail --location --retry 3 https://github.com/ethonchen/DiPlay/releases/download/v0.2.21-android6-q7-upstream1/DiPlay-Q7-0.2.21-upstream1.apk -o previous.apk
-      - name: Prepare an Android 6 HTTPS probe without modifying the APK
-        shell: bash
-        run: |
-          mkdir network-probe
-          cat > network-probe/Q7NetworkProbe.java <<'JAVA'
-          import java.net.*;
-          import java.io.*;
-          public class Q7NetworkProbe {
-            public static void main(String[] urls) {
-              for (String value : urls) {
-                HttpURLConnection connection = null;
-                try {
-                  connection = (HttpURLConnection)new URL(value).openConnection();
-                  connection.setConnectTimeout(8000);
-                  connection.setReadTimeout(8000);
-                  connection.setRequestProperty("User-Agent", "DiPlay-Q7-API23-Probe");
-                  int status = connection.getResponseCode();
-                  InputStream input = status < 400 ? connection.getInputStream() : connection.getErrorStream();
-                  byte[] bytes = new byte[120];
-                  int count = input == null ? 0 : input.read(bytes);
-                  if (input != null) input.close();
-                  String prefix = count > 0 ? new String(bytes, 0, count, "UTF-8").replace('\n',' ') : "";
-                  System.out.println("Q7-HTTPS " + value + " status=" + status + " prefix=" + prefix);
-                } catch (Exception error) {
-                  System.out.println("Q7-HTTPS " + value + " ERROR " + error);
-                  Throwable cause = error.getCause();
-                  while (cause != null) { System.out.println("cause: " + cause); cause = cause.getCause(); }
-                } finally { if (connection != null) connection.disconnect(); }
-              }
-            }
-          }
-          JAVA
-          javac --release 8 network-probe/Q7NetworkProbe.java
-          "$ANDROID_HOME/build-tools/36.0.0/d8" --min-api 23 --lib "$ANDROID_HOME/platforms/android-37.0/android.jar" --output network-probe/probe.jar network-probe/Q7NetworkProbe.class
       - run: sudo chmod 666 /dev/kvm
       - name: Validate the exact final signed APK on Android 6
         uses: reactivecircus/android-emulator-runner@v2
@@ -73,9 +39,11 @@ jobs:
             bash scripts/smoke_q7_upgrade.sh previous.apk candidate.apk
             bash scripts/smoke_android6.sh candidate.apk
             bash scripts/smoke_q7_runtime.sh candidate.apk
-            adb push network-probe/probe.jar /data/local/tmp/q7-network-probe.jar
-            adb shell 'CLASSPATH=/data/local/tmp/q7-network-probe.jar app_process /system/bin Q7NetworkProbe "https://api.github.com/repos/ethonchen/DiPlay/releases?per_page=3" "https://gh-proxy.com/https://github.com/ethonchen/DiPlay/releases/download/v0.2.21-android6-q7-upstream1/SHA256SUMS.txt" "https://ghproxy.net/https://github.com/ethonchen/DiPlay/releases/download/v0.2.21-android6-q7-upstream1/SHA256SUMS.txt" "https://github.com/ethonchen/DiPlay/releases/download/v0.2.21-android6-q7-upstream1/SHA256SUMS.txt"' > android6-smoke/https-probe.txt
+            adb push candidate.apk /data/local/tmp/q7-update-network.apk
+            adb shell 'CLASSPATH=/data/local/tmp/q7-update-network.apk app_process /system/bin com.shilapi.xcertplay.update.Q7UpdateNetworkProbe "https://api.github.com/repos/ethonchen/DiPlay/releases?per_page=3" "https://gh-proxy.com/https://api.github.com/repos/ethonchen/DiPlay/releases?per_page=3" "https://ghproxy.net/https://api.github.com/repos/ethonchen/DiPlay/releases?per_page=3" "https://gh-proxy.com/https://github.com/ethonchen/DiPlay/releases/download/v0.2.21-android6-q7-upstream1/SHA256SUMS.txt" "https://ghproxy.net/https://github.com/ethonchen/DiPlay/releases/download/v0.2.21-android6-q7-upstream1/SHA256SUMS.txt" "https://github.com/ethonchen/DiPlay/releases/download/v0.2.21-android6-q7-upstream1/SHA256SUMS.txt" "https://gh-proxy.com/https://github.com/ethonchen/DiPlay/releases/latest/download/SHA256SUMS.txt" "https://ghproxy.net/https://github.com/ethonchen/DiPlay/releases/latest/download/SHA256SUMS.txt"' > android6-smoke/https-probe.txt
             cat android6-smoke/https-probe.txt
+            if grep -Eq 'SSLHandshakeException|CertPathValidatorException|Update CA bundle' android6-smoke/https-probe.txt; then exit 1; fi
+            grep -E 'Q7-UPDATE-HTTPS https://(gh-proxy.com|ghproxy.net)/https://github.com/.*status=200 prefix=3a4a96f35370da9903b52eddabd708f719ab28f58716b217e867b6e4135906e0' android6-smoke/https-probe.txt
       - name: Upload only the final release files after Android 6 validation
         uses: actions/upload-artifact@v4
         with:
