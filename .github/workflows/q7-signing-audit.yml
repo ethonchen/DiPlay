@@ -1,17 +1,24 @@
-name: Q7 signing cache metadata
+name: Q7 proxy route audit
 on:
   push:
     branches: [audit/q7-signing-20261027]
 permissions:
-  actions: read
   contents: read
 jobs:
-  inventory:
+  routes:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: List signing cache keys and refs only
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Check public GitHub API and latest-release routes
+        shell: bash
         run: |
-          gh api 'repos/ethonchen/DiPlay/actions/caches?key=diplay-android6-debug-signing-v1&per_page=100' --jq '{total_count, caches: [.actions_caches[] | {key, ref, size_in_bytes, created_at, last_accessed_at}]}'
+          for url in \
+            'https://gh-proxy.com/https://api.github.com/repos/ethonchen/DiPlay/releases?per_page=3' \
+            'https://ghproxy.net/https://api.github.com/repos/ethonchen/DiPlay/releases?per_page=3' \
+            'https://gh-proxy.com/https://github.com/ethonchen/DiPlay/releases/latest/download/SHA256SUMS.txt' \
+            'https://ghproxy.net/https://github.com/ethonchen/DiPlay/releases/latest/download/SHA256SUMS.txt'; do
+            printf '\nURL=%s\n' "$url"
+            curl --connect-timeout 5 --max-time 10 --location --silent --show-error -H 'Cache-Control: no-cache' -H 'User-Agent: DiPlay-Q7-Updater' -o "$RUNNER_TEMP/proxy-body" -w 'HTTP=%{http_code}\n' "$url" || true
+            if test -f "$RUNNER_TEMP/proxy-body"; then head -c 220 "$RUNNER_TEMP/proxy-body"; fi
+            printf '\n'
+          done
