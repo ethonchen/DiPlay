@@ -1,0 +1,17 @@
+name: Q7 signing cache metadata
+on:
+  push:
+    branches: [audit/q7-signing-20261027]
+permissions:
+  actions: read
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: List signing cache keys and refs only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api 'repos/ethonchen/DiPlay/actions/caches?key=diplay-android6-debug-signing-v1&per_page=100' --jq '{total_count, caches: [.actions_caches[] | {key, ref, size_in_bytes, created_at, last_accessed_at}]}'
