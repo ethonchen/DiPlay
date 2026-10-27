@@ -25,7 +25,7 @@
 ## 后续发布约定
 
 1. 递增 `mobile/build.gradle.kts` 的 **versionCode**，并修改唯一的 versionName，例如 `0.2.21-android6-q7-update2` / code 50。
-2. 更新本发布说明，合并到 `main`。Q7 流水线会构建、验证、发布 APK、`SHA256SUMS.txt` 和 `update.json`，不需要手工维护 JSON。
+2. 更新本发布说明，合并到 `main`。配置第 3 项签名 Secret 后，Q7 流水线才会自动构建、验证、发布 APK、`SHA256SUMS.txt` 和 `update.json`。当前 Secret 尚未配置，本次采用私有离线签名，再验证和发布；后续也可沿用此方式。三个附件由脚本生成，不需要手工维护 JSON。
 3. 使用正式 Release；实验包标记 prerelease，应用会忽略。沿用现有包名及签名密钥。将原 `debug.keystore` 的 Base64 保存为仓库 Actions Secret **DIPLAY_Q7_KEYSTORE_BASE64**；密钥也有私有离线备份；签名必须匹配固定证书，缺失时停止发布。
 4. 手动发布时，上传 `scripts/prepare_q7_release.py` 对已验证 APK 生成的三个文件；只上传 APK 时可通过 GitHub 自动生成的 digest 兼容检测更高三段版本号，同三段版本的更新应始终附上 `update.json`。
 
