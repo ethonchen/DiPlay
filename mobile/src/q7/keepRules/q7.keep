@@ -8,3 +8,6 @@
 -keep class com.shilapi.xcertplay.Q7RuntimeProbe {
     public static void main(java.lang.String[]);
 }
+-keep class com.shilapi.xcertplay.update.Q7UpdateNetworkProbe {
+    public static void main(java.lang.String[]);
+}
