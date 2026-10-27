@@ -1,0 +1,146 @@
+name: Publish verified Q7 update1 APK
+on:
+  push:
+    branches: [release/q7-update1-verified-20261027]
+    paths: [.github/workflows/release-q7-update1.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: release-q7-update1
+  cancel-in-progress: false
+env:
+  SOURCE_SHA: 552f7ff49eeb79ba23ce15edea882a9028903c50
+  APK_SHA256: d0ef9bb38d74f50c2ee4cda0b3af3f16476cba2f49e5ac9843d6d50a34bba5f2
+jobs:
+  verify:
+    if: github.repository == 'ethonchen/DiPlay'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+      - name: Require the complete source checks and tested build provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code "$SOURCE_SHA" fb53dc07f6dd225fc01764253ec688dd7a8adb51 -- . ':(exclude).github/workflows/q7-offline-signing.yml'
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/40494237000" > source-run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/40494237000/jobs?per_page=100" > source-jobs.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/40491897566" > build-run.json
+          python3 - <<'PY'
+          import json, os
+          source = json.load(open('source-run.json'))
+          assert source['head_sha'] == os.environ['SOURCE_SHA'] and source['status'] == 'completed'
+          jobs = {j['name']: j for j in json.load(open('source-jobs.json'))['jobs']}
+          for name in ('checks', 'media-key-system-check'):
+              assert jobs[name]['conclusion'] == 'success', name
+          build = json.load(open('build-run.json'))
+          assert build['head_sha'] == 'fb53dc07f6dd225fc01764253ec688dd7a8adb51'
+          assert build['conclusion'] == 'success'
+          print('Full unit tests, lint, API-23 checks and optimized build source verified.')
+          PY
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-37.0 build-tools;36.0.0
+      - uses: actions/download-artifact@v4
+        with:
+          name: q7-offline-signing-input
+          run-id: 40491897566
+          github-token: ${{ github.token }}
+          path: tested-build
+      - name: Verify the final signed APK without transferring its private key
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/git/blobs/00dd88cd911c981155c8f9904bdb86f2de1ee440" --jq .content | base64 --decode > candidate.apk
+          printf '%s  candidate.apk\n' "$APK_SHA256" | sha256sum --check --strict
+          python3 - <<'PY'
+          import re, zipfile
+          def payload(path):
+              with zipfile.ZipFile(path) as archive:
+                  return {n: archive.read(n) for n in archive.namelist()
+                          if not re.fullmatch(r'META-INF/(?:MANIFEST\.MF|[^/]+\.(?:SF|RSA|DSA|EC))', n, re.I)}
+          assert payload('candidate.apk') == payload('tested-build/mobile-q7.apk')
+          print('Every runtime entry matches the verified optimized build.')
+          PY
+          python3 scripts/verify_android6_apk.py candidate.apk --build-tools "$ANDROID_HOME/build-tools/36.0.0" --standalone --optimized --signer-sha256 42dca8935a4e53f385388e4ed3058edc4e240107c057723a21574dde9d5a2928
+          python3 scripts/prepare_q7_release.py candidate.apk --build-tools "$ANDROID_HOME/build-tools/36.0.0" --output release
+          curl --fail --location --retry 3 https://github.com/ethonchen/DiPlay/releases/download/v0.2.21-android6-q7-upstream1/DiPlay-Q7-0.2.21-upstream1.apk -o previous.apk
+      - run: sudo chmod 666 /dev/kvm
+      - name: Validate the final APK installation, saved data, runtime and HTTPS on Android 6
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 23
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            bash scripts/smoke_q7_upgrade.sh previous.apk candidate.apk
+            bash scripts/smoke_android6.sh candidate.apk
+            bash scripts/smoke_q7_runtime.sh candidate.apk
+            adb push candidate.apk /data/local/tmp/q7-update-network.apk
+            adb shell 'CLASSPATH=/data/local/tmp/q7-update-network.apk app_process /system/bin com.shilapi.xcertplay.update.Q7UpdateNetworkProbe "https://api.github.com/repos/ethonchen/DiPlay/releases?per_page=3" "https://gh-proxy.com/https://github.com/ethonchen/DiPlay/releases/download/v0.2.21-android6-q7-upstream1/SHA256SUMS.txt" "https://ghproxy.net/https://github.com/ethonchen/DiPlay/releases/download/v0.2.21-android6-q7-upstream1/SHA256SUMS.txt" "https://github.com/ethonchen/DiPlay/releases/download/v0.2.21-android6-q7-upstream1/SHA256SUMS.txt"' > android6-smoke/https-probe.txt
+            cat android6-smoke/https-probe.txt
+            if grep -Eq 'SSLHandshakeException|CertPathValidatorException|Update CA bundle' android6-smoke/https-probe.txt; then exit 1; fi
+            grep -E 'Q7-UPDATE-HTTPS https://(gh-proxy.com|ghproxy.net)/https://github.com/.*status=200 prefix=3a4a96f35370da9903b52eddabd708f719ab28f58716b217e867b6e4135906e0' android6-smoke/https-probe.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DiPlay-Q7-update1-release
+          path: release/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: q7-update1-final-android6-evidence
+          path: android6-smoke/
+  publish:
+    needs: verify
+    if: github.repository == 'ethonchen/DiPlay' && github.ref == 'refs/heads/release/q7-update1-verified-20261027'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: DiPlay-Q7-update1-release
+          path: release
+      - name: Publish exactly the verified APK and update manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib
+          root = pathlib.Path('release')
+          info = json.loads((root / 'update.json').read_text())
+          apk = root / info['apkName']
+          assert info['versionCode'] == 49 and info['tagName'] == 'v0.2.21-android6-q7-update1'
+          assert apk.stat().st_size == info['size'] == 7163556
+          assert hashlib.sha256(apk.read_bytes()).hexdigest() == info['sha256'] == os.environ['APK_SHA256']
+          PY
+          tag=v0.2.21-android6-q7-update1
+          cp docs/RELEASE-NOTES-Q7-UPDATE.md release/notes.md
+          printf '\n主干源码：`%s`\n最终签名包 Android 6 验证与发布：https://github.com/%s/actions/runs/%s\nSHA-256：`%s`\n' "$SOURCE_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$APK_SHA256" >> release/notes.md
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            mkdir existing
+            gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern DiPlay-Q7-0.2.21-update1.apk --dir existing
+            printf '%s  existing/DiPlay-Q7-0.2.21-update1.apk\n' "$APK_SHA256" | sha256sum --check --strict
+            exit 0
+          fi
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" --latest --title 'HHQ Q7 Android 6 — 上游合并与应用内更新（update1）' --notes-file release/notes.md release/DiPlay-Q7-0.2.21-update1.apk release/SHA256SUMS.txt release/update.json
