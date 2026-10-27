@@ -20,7 +20,11 @@ def main() -> None:
     assert "package: name='com.shihab.diplay.hudtest'" in badging, "Wrong application package"
     if args.optimized:
         assert "application-debuggable" not in badging, "Optimized APK must not run debuggable"
-        assert "versionCode='48'" in badging and "versionName='0.2.21-android6-q7-upstream1-slim'" in badging
+        # Compare to the build definition so later Q7 updates keep this verification.
+        build = Path("mobile/build.gradle.kts").read_text()
+        code = re.search(r"versionCode = (\d+)", build)[1]
+        version = re.search(r'versionName = "([^"]+)"', build)[1] + "-slim"
+        assert f"versionCode='{code}'" in badging and f"versionName='{version}'" in badging
         assert args.apk.stat().st_size < 12 * 1024 * 1024, "Optimized Q7 APK exceeded the size budget"
     signing = subprocess.check_output([str(args.build_tools / "apksigner"), "verify", "--verbose",
         "--print-certs", "--min-sdk-version", "23", str(args.apk)], text=True)

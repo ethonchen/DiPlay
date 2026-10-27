@@ -5,6 +5,18 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class UpdateVersionTest {
+    @Test fun androidBuildNumberTakesPrecedenceOverTheDisplayedVersion() {
+        val release = UpdateRelease("v0.2.21-android6-q7-update2", "DiPlay.apk", "", "", versionCode = 50)
+        assertTrue(UpdateVersion.isNewer(release, "0.2.21-android6-q7-update1-slim", 49))
+        assertFalse(UpdateVersion.isNewer(release, "0.2.21-android6-q7-update2-slim", 50))
+        assertFalse(UpdateVersion.isNewer(release, "0.2.21-android6-q7-update3-slim", 51))
+    }
+
+    @Test fun legacyQ7RevisionComparesNumericallyAndIgnoresSlimSuffix() {
+        assertTrue(UpdateVersion.isNewer("v0.2.21-android6-q7-update10", "0.2.21-android6-q7-update9-slim"))
+        assertFalse(UpdateVersion.isNewer("v0.2.21-android6-q7-update1", "0.2.21-android6-q7-update1-slim"))
+    }
+
     @Test
     fun newerTagIsAnUpdate() {
         assertTrue(UpdateVersion.isNewer("v0.2.15", "0.2.14"))

@@ -11,7 +11,7 @@ internal object UpdateChecksums {
         text.lineSequence()
             .mapNotNull { line ->
                 LINE.find(line.trim())?.let { match ->
-                    match.groupValues[2].trim() to match.groupValues[1].lowercase()
+                    match.groupValues[2].trim().removePrefix("*").removePrefix("./") to match.groupValues[1].lowercase()
                 }
             }
             .toMap()
