@@ -27,16 +27,6 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
-      - name: Restore the tested APK signing key from main
-        uses: actions/cache/restore@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: diplay-android6-debug-signing-v1
-          fail-on-cache-miss: true
-      - name: Require the existing update key
-        run: |
-          test -s "$HOME/.android/debug.keystore"
-          echo "DIPLAY_DEBUG_KEYSTORE_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
       - name: Required tests, lint and source debug builds
         run: ./gradlew :shared:testDebugUnitTest :common:testDebugUnitTest :home:testDebugUnitTest :shared:lintDebug :common:lintDebug :mobile:lintDebug :home:lintDebug :maphost:lintDebug :mobile:assembleDebug :home:assembleDebug :maphost:assembleDebug --continue --stacktrace
       - name: Full test reports
@@ -68,18 +58,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
-      - name: Restore the tested APK signing key from main
-        uses: actions/cache/restore@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: diplay-android6-debug-signing-v1
-          fail-on-cache-miss: true
-      - name: Require the existing update key
-        run: |
-          test -s "$HOME/.android/debug.keystore"
-          echo "DIPLAY_DEBUG_KEYSTORE_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
       - name: FYT focus and Binder regression tests
         run: ./gradlew :common:testDebugUnitTest --tests com.shilapi.xcertplay.FytWheelKeysTest --tests com.shilapi.xcertplay.FytKeyFocusTest --tests com.shilapi.xcertplay.FytLegacyMediaKeysTest --tests com.shilapi.xcertplay.FytBspProtocolTest --stacktrace
+      - name: Restore the original Q7 update signer
+        uses: ./.github/actions/q7-signing
+        with:
+          keystore-base64: ${{ secrets.DIPLAY_Q7_KEYSTORE_BASE64 }}
       - name: Provision the same public experimental identity as the tested APK
         run: |
           curl --fail --location --retry 3 https://github.com/shihabal3amri/DiPlay/releases/download/v0.2.14/DiPlay-0.2.14.apk -o "$RUNNER_TEMP/upstream-public.apk"

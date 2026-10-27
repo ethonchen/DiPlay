@@ -57,6 +57,7 @@ internal object UpdateClient {
             connection.connectTimeout = CONNECT_TIMEOUT_MILLIS
             connection.readTimeout = READ_TIMEOUT_MILLIS
             connection.useCaches = false
+            connection.setRequestProperty("Cache-Control", "no-cache")
             accept?.let { connection.setRequestProperty("Accept", it) }
             connection.setRequestProperty("User-Agent", userAgent)
             val statusCode = connection.responseCode

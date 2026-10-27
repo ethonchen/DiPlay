@@ -1,0 +1,33 @@
+name: Restore the original Q7 update signing key
+description: Use a durable repository secret first, retaining the old cache as a compatibility fallback.
+inputs:
+  keystore-base64:
+    description: Original debug.keystore encoded as base64, from DIPLAY_Q7_KEYSTORE_BASE64.
+    required: false
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache/restore@v4
+      with:
+        path: ~/.android/debug.keystore
+        key: diplay-android6-debug-signing-v1
+    - name: Restore and verify the original signer, without generating a replacement
+      shell: bash
+      env:
+        Q7_KEYSTORE_BASE64: ${{ inputs.keystore-base64 }}
+      run: |
+        set -euo pipefail
+        python3 - <<'PY'
+        import base64, os, pathlib
+        key = pathlib.Path.home() / '.android/debug.keystore'
+        encoded = os.environ.get('Q7_KEYSTORE_BASE64', '').strip()
+        if encoded:
+            key.parent.mkdir(parents=True, exist_ok=True)
+            key.write_bytes(base64.b64decode(''.join(encoded.split()), validate=True))
+            key.chmod(0o600)
+        if not key.is_file() or key.stat().st_size == 0:
+            raise SystemExit('Original Q7 signing key unavailable. Restore it as DIPLAY_Q7_KEYSTORE_BASE64; never generate a different update key.')
+        PY
+        fingerprint=$(keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey | sed -n 's/.*SHA256: //p' | tr -d ':' | tr '[:upper:]' '[:lower:]')
+        test "$fingerprint" = 5113b2d373d54973ac2fe837ab1d0f4132dba3e4fba64d4027bd4d41823d163f
+        echo "DIPLAY_DEBUG_KEYSTORE_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"

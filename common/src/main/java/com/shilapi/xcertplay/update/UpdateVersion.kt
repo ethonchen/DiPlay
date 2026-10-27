@@ -3,11 +3,11 @@ package com.shilapi.xcertplay.update
 internal object UpdateVersion {
     private val TRIPLE = Regex("(\\d+)\\.(\\d+)\\.(\\d+)")
 
-    internal fun parse(value: String): Triple<Int, Int, Int>? =
-        TRIPLE.find(value)?.let { match ->
-            val parts = (1..3).map { match.groupValues[it].toIntOrNull() ?: return null }
-            Triple(parts[0], parts[1], parts[2])
-        }
+    internal fun parse(value: String): Triple<Int, Int, Int>? {
+        val match = TRIPLE.find(value) ?: return null
+        val parts = (1..3).map { match.groupValues[it].toIntOrNull() ?: return null }
+        return Triple(parts[0], parts[1], parts[2])
+    }
 
     internal fun isNewer(release: UpdateRelease, installed: String, installedCode: Long): Boolean =
         release.versionCode?.let { it > installedCode } ?: isNewer(release.tagName, installed)
