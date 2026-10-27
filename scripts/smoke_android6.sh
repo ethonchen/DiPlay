@@ -5,7 +5,7 @@ package=com.shihab.diplay.hudtest
 mkdir -p android6-smoke
 adb shell getprop ro.build.version.sdk > android6-smoke/sdk.txt
 test "$(tr -d '\r\n' < android6-smoke/sdk.txt)" = 23
-adb install -r "$apk"
+bash scripts/adb_install_checked.sh "$apk" android6-smoke/startup-install.txt
 adb logcat -c
 adb shell am start -W -n "$package/com.shilapi.xcertplay.DiPlayActivity" --es page settings > android6-smoke/start.txt
 # Allow asynchronous startup work to run before checking process health and the screen.
