@@ -437,6 +437,7 @@ internal class MicrophoneUplink(
      * Other apps' recordings carry no package name for a normal app, only their source.
      */
     private fun silenceDetail(manager: AudioManager, ownSession: Int): String {
+        if (Build.VERSION.SDK_INT < 24) return "audioMode=${manager.mode} otherRecordings=unavailable(api=${Build.VERSION.SDK_INT})"
         val others = manager.activeRecordingConfigurations
             .filter { it.clientAudioSessionId != ownSession }
             .map { MicrophoneCaptureStats.sourceName(it.clientAudioSource) }

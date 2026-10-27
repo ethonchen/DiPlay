@@ -78,7 +78,7 @@ internal object CarPlayScreen {
         } else {
             append(" open=${screen.javaClass.simpleName} task=${screen.taskId}")
             append(" taskRoot=${runCatching { screen.isTaskRoot }.getOrNull()}")
-            append(" multiWindow=${screen.isInMultiWindowMode}")
+            append(" multiWindow=${android.os.Build.VERSION.SDK_INT >= 24 && screen.isInMultiWindowMode}")
             append(" display=${screen.window?.decorView?.display?.displayId}")
         }
     }

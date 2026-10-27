@@ -27,7 +27,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
-      - name: Restore the original Q7 signer for fork distribution builds
+      - name: Restore the permanent Q7 signer for fork distribution builds
         if: github.repository == 'ethonchen/DiPlay' && github.event_name == 'push'
         uses: ./.github/actions/q7-signing
         with:

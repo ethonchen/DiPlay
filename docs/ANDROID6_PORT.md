@@ -170,11 +170,16 @@ Export this build's diagnostics while music is playing if any of them is silent.
 
 The in-app update feed now points to `ethonchen/DiPlay`; upstream's newer Android
 minimum and signing identity must not be offered as updates to this port. If
-this fork has no release with an APK and checksums, no update is offered.
-For subsequent APK builds use the fork Actions artifact and the same cached
-signing key. Fork push builds generate/restore an explicit cached debug keystore
-and pass its path to Gradle; AGP's default location is not assumed. The final
-main-branch APK establishes the update-signing baseline. Earlier unpublished
+this fork has no compatible published APK with integrity metadata, no update is offered.
+Current Q7 releases include `update.json` so same-version revisions compare by Android versionCode.
+Downloads try gh-proxy.com, ghproxy.net, then GitHub; invalid or partial downloads switch source.
+For subsequent APK builds use the fork Actions artifact and the permanent signing
+key. Restore that key from the repository Actions secret
+`DIPLAY_Q7_KEYSTORE_BASE64`; the keystore also has a private offline backup. Fork push
+builds verify its certificate and pass its explicit path to Gradle. They never
+generate a replacement when the original is absent. Signing keys must have a
+durable private backup; an Actions cache alone is not one. The original
+main-branch APK established the update-signing baseline. Earlier unpublished
 code-33/34 test artifacts used temporary signing keys: uninstall that test app
 once if Android reports a signature conflict. The separate Legacy app does not
 conflict with this package.
@@ -234,3 +239,12 @@ API-23 probe checks successful chaining and exceptional completion. Button
 rounding reuses its computed radius without calling API-24 GradientDrawable's
 getter; the Downloads helper and BYD call-popup tool declare their guarded
 newer-platform requirements. All API lint remains enabled.
+
+## Permanent signing migration (2026-10-27)
+
+The old signer cache is empty and had no backup. The owner explicitly authorized a new
+key and a one-time reinstall. The new certificate SHA-256 is
+`42dca8935a4e53f385388e4ed3058edc4e240107c057723a21574dde9d5a2928`.
+Export settings and uninstall the old signed APK once before installing update1.
+Subsequent releases must reuse the new key and increment versionCode.
+The private key must never be uploaded to a public repository, Release or Actions artifact.

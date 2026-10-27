@@ -9,6 +9,17 @@ adb install -r "$previous"
 adb root
 adb wait-for-device
 adb shell 'mkdir -p /data/data/com.shihab.diplay.hudtest/files; echo preserved > /data/data/com.shihab.diplay.hudtest/files/q7-upgrade-check'
+# The owner authorized a one-time signer migration after the old cache was lost.
+# Android must reject a direct update of the old signer instead of silently wiping data.
+if adb install -r "$next" > android6-smoke/old-signer-update.txt 2>&1; then
+    echo 'The previous APK already uses the permanent signer.'
+else
+    grep -q 'INSTALL_FAILED_UPDATE_INCOMPATIBLE' android6-smoke/old-signer-update.txt
+    adb shell cat /data/data/com.shihab.diplay.hudtest/files/q7-upgrade-check | tr -d '\r' | grep -q '^preserved$'
+    adb uninstall com.shihab.diplay.hudtest
+    adb install "$next"
+    adb shell 'mkdir -p /data/data/com.shihab.diplay.hudtest/files; echo preserved > /data/data/com.shihab.diplay.hudtest/files/q7-upgrade-check'
+fi
 adb install -r "$next" | tee android6-smoke/update-install.txt
 adb shell cat /data/data/com.shihab.diplay.hudtest/files/q7-upgrade-check | tr -d '\r' | tee android6-smoke/update-data.txt
 grep -q '^preserved$' android6-smoke/update-data.txt
