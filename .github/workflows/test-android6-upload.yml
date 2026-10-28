@@ -1,0 +1,59 @@
+name: Android 6 uploaded APK verification
+on:
+  push:
+    branches: [test/android6-upload-d0ef9bb-20261028]
+    paths: [.github/workflows/test-android6-upload.yml]
+permissions:
+  contents: read
+jobs:
+  android6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-37.0 build-tools;36.0.0
+      - name: Download and verify the identical APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 https://github.com/ethonchen/DiPlay/releases/download/v0.2.21-android6-q7-update1/DiPlay-Q7-0.2.21-update1.apk -o candidate.apk
+          printf '%s  candidate.apk\n' d0ef9bb38d74f50c2ee4cda0b3af3f16476cba2f49e5ac9843d6d50a34bba5f2 | sha256sum --check --strict
+          python3 scripts/verify_android6_apk.py candidate.apk --build-tools "$ANDROID_HOME/build-tools/36.0.0" --standalone --optimized --signer-sha256 42dca8935a4e53f385388e4ed3058edc4e240107c057723a21574dde9d5a2928
+      - name: Enable emulator acceleration
+        run: sudo chmod 666 /dev/kvm
+      - name: Install and exercise the APK on Android 6
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 23
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            bash scripts/smoke_android6.sh candidate.apk
+            bash scripts/smoke_q7_runtime.sh candidate.apk
+            adb logcat -c
+            for page in home connection setup settings; do
+              adb shell am force-stop com.shihab.diplay.hudtest
+              adb shell am start -W -n com.shihab.diplay.hudtest/com.shilapi.xcertplay.DiPlayActivity --es page "$page" | tee "android6-smoke/$page-start.txt"
+              grep -q 'Status: ok' "android6-smoke/$page-start.txt"
+              sleep 4
+              adb shell dumpsys activity activities | tr -d '\r' | grep 'mResumedActivity.*com.shihab.diplay.hudtest.*DiPlayActivity' | tee "android6-smoke/$page-activity.txt"
+              adb shell uiautomator dump "/sdcard/diplay-$page.xml"
+              adb pull "/sdcard/diplay-$page.xml" "android6-smoke/$page.xml"
+              adb exec-out screencap -p > "android6-smoke/$page.png"
+            done
+            adb logcat -d > android6-smoke/pages-logcat.txt
+            if grep -E 'FATAL EXCEPTION|NoSuchMethodError|NoClassDefFoundError|UnsatisfiedLinkError' android6-smoke/pages-logcat.txt; then exit 1; fi
+            echo 'Four Android 6 app pages started without detected fatal errors.'
+      - name: Save test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android6-upload-test-evidence
+          path: android6-smoke/
