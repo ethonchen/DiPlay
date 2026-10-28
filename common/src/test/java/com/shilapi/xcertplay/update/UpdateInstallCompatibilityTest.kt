@@ -29,7 +29,7 @@ class UpdateInstallCompatibilityTest {
     private val publicCopy = Uri.parse("content://media/external/downloads/42")
 
     private fun expectedPublicUri(): Uri = if (Build.VERSION.SDK_INT < 24) {
-        val context = RuntimeEnvironment.getApplication<android.app.Application>()
+        val context = RuntimeEnvironment.getApplication()
         Uri.fromFile(File(context.getExternalFilesDir(null), "update/DiPlay.apk"))
     } else publicCopy
 
