@@ -2795,9 +2795,21 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         val savedUri = updateSavedUri
         val generation = updateGeneration
         updateInstallWorker(Runnable {
-            val publicUri = savedUri?.takeIf { sameContent(it, file) }
+            // Android 6's stock PackageInstaller resolves file://, not content://.
+            // Recreate the external copy from the verified private APK off the UI
+            // thread, including if a file manager deleted or replaced an old copy.
+            val legacyInstaller = Build.VERSION.SDK_INT < Build.VERSION_CODES.N
+            val publicUri = if (legacyInstaller) {
+                UpdateApkExport.copy(applicationContext, file)?.let { Uri.fromFile(File(it.path)) }
+                    ?.takeIf { sameContent(it, file) }
+            } else savedUri?.takeIf { sameContent(it, file) }
             runOnUiThread {
-                if (generation == updateGeneration && !isFinishing && !isDestroyed) startInstaller(file, publicUri)
+                if (generation != updateGeneration || isFinishing || isDestroyed) return@runOnUiThread
+                if (legacyInstaller && publicUri == null) {
+                    Log.w("DiPlay-Update", "Could not prepare the verified Android 6 installer copy")
+                    updateMessage = getString(R.string.update_failed)
+                    render()
+                } else startInstaller(file, publicUri)
             }
         })
     }
@@ -2811,7 +2823,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         // Ask only when several installers exist. A lone system installer opens directly, as before.
         val installers = packageManager.queryIntentActivities(view, PackageManager.MATCH_DEFAULT_ONLY).size
         val launch = if (installers > 1) Intent.createChooser(view, null) else view
-        val outcome = "${if (installers > 1) "chooser" else "direct"} uri=${if (publicUri != null) "public" else "provider"} installers=$installers"
+        val outcome = "${if (installers > 1) "chooser" else "direct"} uri=${if (publicUri != null) "public" else "provider"} installers=$installers scheme=${uri.scheme}"
         try {
             startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             Log.i("DiPlay-Update", "install started: $outcome")

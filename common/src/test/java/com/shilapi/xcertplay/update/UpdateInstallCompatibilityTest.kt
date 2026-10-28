@@ -4,6 +4,7 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.ResolveInfo
 import android.net.Uri
+import android.os.Build
 import androidx.core.content.FileProvider
 import com.shilapi.xcertplay.DiPlayActivity
 import com.shilapi.xcertplay.FileProviderPathTestShadow
@@ -11,6 +12,7 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertArrayEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,6 +27,11 @@ import org.robolectric.annotation.Config
 class UpdateInstallCompatibilityTest {
     private val apkType = "application/vnd.android.package-archive"
     private val publicCopy = Uri.parse("content://media/external/downloads/42")
+
+    private fun expectedPublicUri(): Uri = if (Build.VERSION.SDK_INT < 24) {
+        val context = RuntimeEnvironment.getApplication<android.app.Application>()
+        Uri.fromFile(File(context.getExternalFilesDir(null), "update/DiPlay.apk"))
+    } else publicCopy
 
     // Robolectric gives each test a new cache dir; FileProvider keeps the first one in a static cache.
     @Before fun resetFileProviderCache() {
@@ -44,7 +51,8 @@ class UpdateInstallCompatibilityTest {
         fields.forEach { (name, value) ->
             DiPlayActivity::class.java.getDeclaredField(name).apply { isAccessible = true }.set(activity, value)
         }
-        val query = Intent(Intent.ACTION_VIEW).setDataAndType(if (publicUriReadable) publicCopy else Uri.parse("content://x"), apkType)
+        val query = Intent(Intent.ACTION_VIEW).setDataAndType(
+            if (Build.VERSION.SDK_INT < 24 || publicUriReadable) expectedPublicUri() else Uri.parse("content://x"), apkType)
         repeat(installers) {
             shadowOf(activity.packageManager).addResolveInfoForIntent(query, ResolveInfo().apply {
                 activityInfo = ActivityInfo().apply { packageName = "installer$it"; name = "Install" }
@@ -58,14 +66,14 @@ class UpdateInstallCompatibilityTest {
         val started = install(publicUriReadable = true, installers = 2)
         assertEquals(Intent.ACTION_CHOOSER, started.action)
         val view = started.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)!!
-        assertEquals(publicCopy, view.data)
+        assertEquals(expectedPublicUri(), view.data)
         assertEquals(apkType, view.type)
     }
 
     @Test fun oneInstallerOpensDirectlyWithoutPermissionPrecheck() {
         val started = install(publicUriReadable = true, installers = 1)
         assertEquals(Intent.ACTION_VIEW, started.action)
-        assertEquals(publicCopy, started.data)
+        assertEquals(expectedPublicUri(), started.data)
         val report = UpdateAvailability.report(RuntimeEnvironment.getApplication(), System.currentTimeMillis())
         assertEquals(true, report.contains("lastInstall=direct uri=public installers=1"))
     }
@@ -78,9 +86,21 @@ class UpdateInstallCompatibilityTest {
         }
     }
 
-    @Test fun swappedPublicCopyFallsBackToTheProviderUri() {
+    @Test fun swappedPublicCopyIsNeverPassedToTheInstaller() {
         val started = install(publicUriReadable = true, installers = 0, publicBytes = byteArrayOf(2))
-        assertEquals(true, started.data!!.authority!!.endsWith(".update-apks"))
+        if (Build.VERSION.SDK_INT < 24) {
+            assertEquals("file", started.data!!.scheme)
+            assertArrayEquals(byteArrayOf(1), File(started.data!!.path!!).readBytes())
+        } else assertEquals(true, started.data!!.authority!!.endsWith(".update-apks"))
+    }
+
+    @Config(sdk = [23])
+    @Test fun android6RecreatesTheExternalFileEvenWithoutAPublicProvider() {
+        val started = install(publicUriReadable = false, installers = 1)
+        assertEquals(Intent.ACTION_VIEW, started.action)
+        assertEquals(apkType, started.type)
+        assertEquals(expectedPublicUri(), started.data)
+        assertArrayEquals(byteArrayOf(1), File(started.data!!.path!!).readBytes())
     }
 
     // Robolectric before API 29 opens unknown content URIs without error, so it cannot model a deleted row.
