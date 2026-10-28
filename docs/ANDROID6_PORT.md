@@ -248,3 +248,17 @@ key and a one-time reinstall. The new certificate SHA-256 is
 Export settings and uninstall the old signed APK once before installing update1.
 Subsequent releases must reuse the new key and increment versionCode.
 The private key must never be uploaded to a public repository, Release or Actions artifact.
+
+## Android 6 update installer (2026-10-28)
+
+The unchanged published update1 correctly discovers, downloads and verifies Q7 updates.
+Its installer handoff fails on stock API 23 because the stock PackageInstaller intent filter
+accepts `file` but not `content`. This was reproduced with ActivityNotFoundException and
+zero matching handlers, despite PackageInstaller being installed.
+
+Starting with `0.2.21-android6-q7-update2-fix1-slim` (51), the app recreates an external copy
+from the verified private APK on its worker thread, verifies the copy, and passes a file URI
+on API 23. API 24+ retains the content-provider/MediaStore flow. The private cache remains private.
+Old update1/code 49 and update2/code 50 cannot receive this code change before installation:
+if their Install button fails, open the app's displayed saved APK in the car's file manager
+and confirm an in-place installation. No uninstall or signer migration is needed.

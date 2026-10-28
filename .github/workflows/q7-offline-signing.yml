@@ -2,7 +2,7 @@ name: Q7 offline signing build
 # Builds with a temporary CI signer; never publishes this intermediate APK.
 on:
   push:
-    branches: ["merge/upstream-20261028-q7-update2"]
+    branches: ["merge/upstream-20261028-q7-update2*"]
 permissions:
   contents: read
 jobs:

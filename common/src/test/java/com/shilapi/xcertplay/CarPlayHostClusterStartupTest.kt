@@ -12,6 +12,7 @@ import com.shilapi.xcertplay.media.AndroidMediaSink
 import com.shilapi.xcertplay.media.CarPlayNowPlaying
 import com.shilapi.xcertplay.orchestration.CarPlayController
 import java.util.concurrent.ExecutorService
+import java.util.concurrent.atomic.AtomicBoolean
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -168,11 +169,16 @@ class CarPlayHostClusterStartupTest {
         firstFrame()
         verify(sink).setSurface(111, surface)
         val replacement = mock(AirPlaySession::class.java)
+        // onSessionActive starts a real command executor that also calls this
+        // mock. Install the answer before that thread runs; re-stubbing the mock
+        // concurrently can make Mockito stub the wrong invocation.
+        val replacementRendered = AtomicBoolean(false)
+        `when`(replacement.hasRenderedMainFrame).thenAnswer { replacementRendered.get() }
         listener().onSessionActive(replacement)
         shadowOf(Looper.getMainLooper()).idle()
         verify(sink).clearSurface(111, surface)
         verify(sink, times(1)).setSurface(111, surface)
-        `when`(replacement.hasRenderedMainFrame).thenReturn(true)
+        replacementRendered.set(true)
         listener().onVideoFrameRendered(replacement)
         shadowOf(Looper.getMainLooper()).idle()
         verify(sink, times(2)).setSurface(111, surface)
