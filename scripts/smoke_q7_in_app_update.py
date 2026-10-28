@@ -144,6 +144,8 @@ def main():
     deadline = time.monotonic() + 120
     while time.monotonic() < deadline:
         nodes = snapshot("installer")
+        if choose(nodes, text_is("Update failed", "更新失败")):
+            raise AssertionError("Update1 could not start Android's installer; see logcat and update-state.xml")
         if any("packageinstaller" in n.get("package", "") for n in nodes):
             installer_seen = True
             button = choose(nodes, lambda a: "packageinstaller" in a.get("package", "") and text_is("Install", "INSTALL", "Next", "NEXT", "安装", "下一步")(a))
