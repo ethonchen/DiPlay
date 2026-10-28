@@ -9,6 +9,23 @@ concurrency:
   group: q7-slim-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  signing:
+    if: github.repository == 'ethonchen/DiPlay'
+    runs-on: ubuntu-latest
+    outputs:
+      available: ${{ steps.key.outputs.available }}
+    steps:
+      - id: key
+        name: Select distribution or private offline signing
+        env:
+          Q7_KEYSTORE_BASE64: ${{ secrets.DIPLAY_Q7_KEYSTORE_BASE64 }}
+        run: |
+          if test -n "$Q7_KEYSTORE_BASE64"; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+            echo 'Private offline signing is required; no release APK will be generated or published here.'
+          fi
   checks:
     if: github.repository == 'ethonchen/DiPlay'
     runs-on: ubuntu-latest
@@ -41,7 +58,8 @@ jobs:
             common/build/reports/
             mobile/build/reports/
   build:
-    if: github.repository == 'ethonchen/DiPlay'
+    needs: signing
+    if: github.repository == 'ethonchen/DiPlay' && needs.signing.outputs.available == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -119,8 +137,8 @@ jobs:
         with:
           name: DiPlay-Q7-slim-standalone
           path: apk
-      - name: Download the previously released APK for an in-place upgrade check
-        run: curl --fail --location --retry 3 https://github.com/ethonchen/DiPlay/releases/download/v0.2.21-android6-q7-upstream1/DiPlay-Q7-0.2.21-upstream1.apk -o apk/previous-q7.apk
+      - name: Download update1 for the same-signer in-place upgrade check
+        run: curl --fail --location --retry 3 https://github.com/ethonchen/DiPlay/releases/download/v0.2.21-android6-q7-update1/DiPlay-Q7-0.2.21-update1.apk -o apk/previous-q7.apk
       - name: Enable emulator acceleration
         run: sudo chmod 666 /dev/kvm
       - name: Run the optimized APK on Android 6
@@ -131,7 +149,7 @@ jobs:
           target: google_apis
           disable-animations: true
           script: |
-            bash scripts/smoke_q7_upgrade.sh apk/previous-q7.apk apk/mobile-q7.apk
+            bash scripts/smoke_q7_upgrade.sh apk/previous-q7.apk apk/mobile-q7.apk --require-same-signer
             bash scripts/smoke_android6.sh apk/mobile-q7.apk
             bash scripts/smoke_q7_runtime.sh apk/mobile-q7.apk
       - name: Android 6 optimized APK evidence

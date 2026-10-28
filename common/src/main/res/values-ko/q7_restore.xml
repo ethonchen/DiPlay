@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_q7_restore_title">Q7 핫스팟 복원 (실험 기능)</string>
+    <string name="settings_q7_restore_permission">DiPlay가 시스템 설정을 변경하도록 허용한 다음 돌아와 다시 연결하세요. 다음 연결 전에 저장된 WPA2 핫스팟을 2.4GHz 대역으로 복원합니다.</string>
+</resources>
