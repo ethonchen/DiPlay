@@ -176,4 +176,23 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        ROOT.mkdir(parents=True, exist_ok=True)
+        for name, command in (
+            ("logcat.txt", ("logcat", "-d")),
+            ("activities.txt", ("shell", "dumpsys", "activity", "activities")),
+            ("packages.txt", ("shell", "pm", "list", "packages", "-f")),
+            ("update-state.xml", ("shell", "cat", f"/data/data/{PACKAGE}/shared_prefs/diplay_update_availability.xml")),
+        ):
+            try:
+                value = adb(*command)
+                (ROOT / name).write_text(value)
+                if name == "logcat.txt":
+                    lines = value.splitlines()
+                    for index, line in enumerate(lines):
+                        if "DiPlay-Update" in line or "FATAL EXCEPTION" in line:
+                            print("\n".join(lines[index:index + 14]), flush=True)
+            except subprocess.CalledProcessError as error:
+                print(f"Could not capture {name}: {error}", flush=True)

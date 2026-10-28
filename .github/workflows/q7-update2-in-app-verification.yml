@@ -1,0 +1,76 @@
+name: Verify update1 in-app upgrade to published update2
+on:
+  push:
+    branches: [verify/q7-update2-in-app-20261028]
+    paths: [.github/workflows/q7-update2-in-app-verification.yml, scripts/smoke_q7_in_app_update.py]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: q7-update2-in-app-verification
+  cancel-in-progress: true
+env:
+  SOURCE_SHA: 4f5f2cccfd0fd89229f33ad76ce0449677560dec
+  APK_SHA256: d5c984456fa2ae213c8a2adfd63f1e56b183c155e6f9285506e2a484e97973e8
+  GH_TOKEN: ${{ github.token }}
+jobs:
+  in-app-update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Require the exact immutable formal update2 release
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/v0.2.21-android6-q7-update2" > published-release.json
+          python3 - <<'PYCODE'
+          import json, os
+          r = json.load(open('published-release.json'))
+          assert not r['draft'] and not r['prerelease']
+          assets = {a['name']: a for a in r['assets']}
+          assert assets['DiPlay-Q7-0.2.21-update2.apk']['digest'] == 'sha256:' + os.environ['APK_SHA256']
+          assert {'update.json', 'SHA256SUMS.txt'} <= assets.keys()
+          PYCODE
+      - name: Download the exact unchanged update1 app
+        run: |
+          curl --fail --location --retry 3 https://github.com/ethonchen/DiPlay/releases/download/v0.2.21-android6-q7-update1/DiPlay-Q7-0.2.21-update1.apk -o update1.apk
+          printf '%s  update1.apk\n' d0ef9bb38d74f50c2ee4cda0b3af3f16476cba2f49e5ac9843d6d50a34bba5f2 | sha256sum --check --strict
+      - run: sudo chmod 666 /dev/kvm
+      - name: Upgrade using update1's own discovery, download and installer UI
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 23
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            bash scripts/adb_install_checked.sh update1.apk android6-smoke/ui-previous-install.txt
+            python3 scripts/smoke_q7_in_app_update.py --expected-sha256 "$APK_SHA256"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: q7-update1-to-update2-in-app-evidence
+          path: |
+            android6-smoke/**/*.txt
+            android6-smoke/**/*.xml
+            android6-smoke/**/*.png
+  record:
+    needs: in-app-update
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+      - name: Record the completed update1 to update2 in-app upgrade
+        run: |
+          set -euo pipefail
+          cp docs/RELEASE-NOTES-Q7-UPDATE.md notes.md
+          printf '\n已验证：原版已发布 update1 在 Android 6 模拟器中，通过自身界面发现、下载、校验并交给系统安装器覆盖安装 update2；安装后 versionCode 为 50，APK 字节一致，原应用数据保留，全程未卸载。Q7 实车结果仍需确认。\n源码：`%s`\n完整源码检查：https://github.com/%s/actions/runs/40622125385\n最终签名与覆盖验证：https://github.com/ethonchen/DiPlay/actions/runs/40623346265\n应用内升级验证：https://github.com/%s/actions/runs/%s\nSHA-256：`%s`\n' "$SOURCE_SHA" "$GITHUB_REPOSITORY" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$APK_SHA256" >> notes.md
+          gh release edit v0.2.21-android6-q7-update2 --repo "$GITHUB_REPOSITORY" --notes-file notes.md
