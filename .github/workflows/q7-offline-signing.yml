@@ -1,0 +1,75 @@
+name: Q7 offline signing build
+# Builds with a temporary CI signer; never publishes this intermediate APK.
+on:
+  push:
+    branches: ["merge/upstream-20261028-q7-update2"]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/check_public_tree.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-37.0 build-tools;36.0.0 ndk;28.2.13676358
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+      - name: Provision the owner-selected public test identity
+        run: |
+          curl --fail --location --retry 3 https://github.com/shihabal3amri/DiPlay/releases/download/v0.2.14/DiPlay-0.2.14.apk -o "$RUNNER_TEMP/upstream-public.apk"
+          python3 scripts/provision_android6_test_identity.py "$RUNNER_TEMP/upstream-public.apk" "$RUNNER_TEMP/android6-runtime" --sha256 62b31f79db32bc7c85013ae830460b697a5952fad571ed0030b97341dde0b2e3 --allow-public-experimental-identity
+      - name: Build the standalone R8 output for local signing
+        env:
+          DIPLAY_AUTH_ASSETS_DIR: ${{ runner.temp }}/android6-runtime
+        run: |
+          ./gradlew :mobile:lintQ7 :mobile:assembleStandaloneQ7 --stacktrace
+          python3 scripts/verify_android6_apk.py mobile/build/outputs/apk/q7/mobile-q7.apk --build-tools "$ANDROID_HOME/build-tools/36.0.0" --standalone --optimized
+          mkdir offline-signing
+          cp mobile/build/outputs/apk/q7/mobile-q7.apk offline-signing/mobile-q7.apk
+          cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" offline-signing/apksigner.jar
+          (cd offline-signing && sha256sum mobile-q7.apk apksigner.jar > SHA256SUMS.txt)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: q7-offline-signing-input
+          path: offline-signing/
+          if-no-files-found: error
+      - name: Remove temporary authentication material
+        if: always()
+        run: python3 -c "import os,shutil; shutil.rmtree(os.environ['RUNNER_TEMP']+'/android6-runtime',ignore_errors=True)"
+  api23-smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: actions/download-artifact@v4
+        with:
+          name: q7-offline-signing-input
+          path: apk
+      - run: sudo chmod 666 /dev/kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 23
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            bash scripts/smoke_android6.sh apk/mobile-q7.apk
+            bash scripts/smoke_q7_runtime.sh apk/mobile-q7.apk
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: q7-offline-signing-smoke
+          path: android6-smoke/

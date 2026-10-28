@@ -27,11 +27,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
-      - name: Restore the permanent Q7 signer for fork distribution builds
-        if: github.repository == 'ethonchen/DiPlay' && github.event_name == 'push'
-        uses: ./.github/actions/q7-signing
-        with:
-          keystore-base64: ${{ secrets.DIPLAY_Q7_KEYSTORE_BASE64 }}
+      # These are source/test APKs, never release candidates. Distribution signing
+      # is enforced by q7-slim or by the verified offline-signing release workflow.
       - name: Unit tests, lint and source-only debug build
         run: ./gradlew :shared:testDebugUnitTest :common:testDebugUnitTest :home:testDebugUnitTest :shared:lintDebug :common:lintDebug :mobile:lintDebug :home:lintDebug :maphost:lintDebug :mobile:assembleDebug :home:assembleDebug :maphost:assembleDebug --continue --stacktrace
       - name: Test reports

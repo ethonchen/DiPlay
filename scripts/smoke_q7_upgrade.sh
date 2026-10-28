@@ -14,6 +14,10 @@ adb shell 'mkdir -p /data/data/com.shihab.diplay.hudtest/files; echo preserved >
 if bash scripts/adb_install_checked.sh "$next" android6-smoke/old-signer-update.txt; then
     echo 'The previous APK already uses the permanent signer.'
 else
+    if test "${3:-}" = --require-same-signer; then
+        echo 'A same-signer upgrade failed; uninstalling would invalidate this test.' >&2
+        exit 1
+    fi
     grep -q 'INSTALL_FAILED_UPDATE_INCOMPATIBLE' android6-smoke/old-signer-update.txt
     adb shell cat /data/data/com.shihab.diplay.hudtest/files/q7-upgrade-check | tr -d '\r' | grep -q '^preserved$'
     adb uninstall com.shihab.diplay.hudtest | tee android6-smoke/migration-uninstall.txt
