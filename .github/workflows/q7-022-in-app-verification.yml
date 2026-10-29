@@ -1,0 +1,61 @@
+name: Verify published Q7 0.2.22 in-app upgrade
+on:
+  push:
+    branches: [release/q7-022-verified-20261029]
+    paths: [.github/workflows/q7-022-in-app-verification.yml]
+permissions:
+  contents: read
+env:
+  SOURCE_SHA: d0fdc6b4c99d230e08895e07aceebbb6709a29b2
+  APK_SHA256: 4a4c29288a93fbed10c30fd4f67cf9c306cf7febc5de26bccdd7a784312860a3
+jobs:
+  in-app-update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Download the unchanged update2-fix1 app
+        run: |
+          curl --fail --location --retry 3 https://github.com/ethonchen/DiPlay/releases/download/v0.2.21-android6-q7-update2-fix1/DiPlay-Q7-0.2.21-update2-fix1.apk -o previous.apk
+          printf '%s  previous.apk\n' ed55e5f8bb185b691846cd9be38c76bcb21fc5c46772bef156ff722488547367 | sha256sum --check --strict
+      - run: sudo chmod 666 /dev/kvm
+      - name: Exercise discovery, download and installer UI on Android 6
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 23
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            bash scripts/wait_android6_boot.sh
+            bash scripts/adb_install_checked.sh previous.apk android6-smoke/ui-previous-install.txt
+            python3 scripts/smoke_q7_in_app_update.py --expected-sha256 "$APK_SHA256" --target-tag v0.2.22-android6-q7-upstream1 --target-code 52 --previous-code 51
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: q7-022-in-app-upgrade-retry-evidence
+          path: |
+            android6-smoke/**/*.txt
+            android6-smoke/**/*.xml
+            android6-smoke/**/*.png
+  record:
+    needs: in-app-update
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+      - name: Record the verified in-app upgrade
+        run: |
+          set -euo pipefail
+          cp docs/RELEASE-NOTES-Q7-UPDATE.md notes.md
+          printf '\n已验证：在 Android 6 模拟器中，已发布的 update2-fix1 通过自身界面发现、下载、校验并打开系统安装器，完成同签名覆盖安装。安装后 versionCode 为 52，APK 字节一致且应用数据保留。HHQ Q7 实车结果仍需确认。\n源码：`%s`\n完整源码检查：https://github.com/%s/actions/runs/40846138424\n最终签名包验证：https://github.com/%s/actions/runs/40847900690\n应用内升级验证：https://github.com/%s/actions/runs/%s\nSHA-256：`%s`\n' "$SOURCE_SHA" "$GITHUB_REPOSITORY" "$GITHUB_REPOSITORY" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$APK_SHA256" >> notes.md
+          gh release edit v0.2.22-android6-q7-upstream1 --repo "$GITHUB_REPOSITORY" --notes-file notes.md
