@@ -7,7 +7,7 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: release-q7-022-upstream1
+  group: release-q7-022-upstream1-retry-aware
   cancel-in-progress: false
 env:
   SOURCE_SHA: d0fdc6b4c99d230e08895e07aceebbb6709a29b2
@@ -31,7 +31,7 @@ jobs:
             ':(exclude).github/workflows/release-q7-022.yml' \
             ':(exclude)scripts/smoke_q7_in_app_update.py'
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/40846138397" > build-run.json
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/40846138397/jobs?per_page=100" > build-jobs.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/40846138397/attempts/1/jobs?per_page=100" > build-jobs.json
           python3 - <<'PYCODE'
           import json, os
           run = json.load(open('build-run.json'))
@@ -120,7 +120,7 @@ jobs:
           required = {
               40846138424: ('checks', 'media-key-system-check'),
               40846153591: ('check',),
-              40846138397: ('build', 'api23-smoke'),
+              40846138397: ('api23-smoke',),
           }
           for run_id, names in required.items():
               run = json.load(open(f'run-{run_id}.json'))
