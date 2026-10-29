@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_q7_restore_title">Q7 etkin noktasını geri yükle (deneysel)</string>
+    <string name="settings_q7_restore_permission">DiPlay uygulamasının sistem ayarlarını değiştirmesine izin verin, ardından geri dönüp yeniden bağlanın. DiPlay, sonraki bağlantıdan önce kayıtlı WPA2 etkin noktasını 2,4 GHz bandında geri yükler.</string>
+</resources>
