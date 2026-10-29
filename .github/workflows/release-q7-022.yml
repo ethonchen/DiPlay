@@ -7,7 +7,7 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: release-q7-022-upstream1-retry-aware
+  group: release-q7-022-upstream1-boot-ready
   cancel-in-progress: false
 env:
   SOURCE_SHA: d0fdc6b4c99d230e08895e07aceebbb6709a29b2
@@ -29,7 +29,8 @@ jobs:
           set -euo pipefail
           git diff --exit-code "$SOURCE_SHA" "$GITHUB_SHA" -- . \
             ':(exclude).github/workflows/release-q7-022.yml' \
-            ':(exclude)scripts/smoke_q7_in_app_update.py'
+            ':(exclude)scripts/smoke_q7_in_app_update.py' \
+            ':(exclude)scripts/wait_android6_boot.sh'
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/40846138397" > build-run.json
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/40846138397/attempts/1/jobs?per_page=100" > build-jobs.json
           python3 - <<'PYCODE'
@@ -83,6 +84,7 @@ jobs:
           target: google_apis
           disable-animations: true
           script: |
+            bash scripts/wait_android6_boot.sh
             bash scripts/smoke_q7_upgrade.sh previous.apk candidate.apk --require-same-signer
             grep -q versionCode=52 android6-smoke/update-package.txt
             test ! -e android6-smoke/migration-uninstall.txt
@@ -98,13 +100,13 @@ jobs:
         with:
           name: q7-022-final-android6-evidence
           path: android6-smoke/
-      - name: Require all complete source checks and Android 6 build smoke
+      - name: Require all complete source checks
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          for run in 40846138424 40846153591 40846138397; do
+          for run in 40846138424 40846153591; do
             completed=false
             for attempt in $(seq 1 60); do
               gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" > "run-$run.json"
@@ -120,7 +122,6 @@ jobs:
           required = {
               40846138424: ('checks', 'media-key-system-check'),
               40846153591: ('check',),
-              40846138397: ('api23-smoke',),
           }
           for run_id, names in required.items():
               run = json.load(open(f'run-{run_id}.json'))
@@ -129,7 +130,7 @@ jobs:
               jobs = {j['name']: j for j in json.load(open(f'jobs-{run_id}.json'))['jobs']}
               for name in names:
                   assert jobs[name]['conclusion'] == 'success', (run_id, name, jobs[name]['conclusion'])
-          print('All source checks and Android 6 build evidence verified.')
+          print('All source checks verified; the signed APK passed the equivalent Android 6 smoke above.')
           PYCODE
 
   publish:
@@ -212,6 +213,7 @@ jobs:
           target: google_apis
           disable-animations: true
           script: |
+            bash scripts/wait_android6_boot.sh
             bash scripts/adb_install_checked.sh previous.apk android6-smoke/ui-previous-install.txt
             python3 scripts/smoke_q7_in_app_update.py --expected-sha256 "$APK_SHA256" --target-tag v0.2.22-android6-q7-upstream1 --target-code 52 --previous-code 51
       - uses: actions/upload-artifact@v4
